@@ -1,0 +1,38 @@
+[package]
+name = "aksara_backend"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# The core web framework
+axum = "0.7"
+
+# The asynchronous runtime needed to run the server
+tokio = { version = "1", features = ["full"] }
+
+# The toolkit for connecting to our PostgreSQL database
+sqlx = { version = "0.7", features = [ "runtime-tokio-rustls", "postgres", "macros", "chrono" ] }
+
+# The standard library for serializing and deserializing data (e.g., to/from JSON)
+serde = { version = "1.0", features = ["derive"] }
+
+# For logging what's happening in our application
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# For loading configuration from .env files
+dotenvy = "0.15"
+
+# For handling dates and times correctly
+chrono = { version = "0.4", features = ["serde"] }
+
+# For securely hashing and verifying passwords
+bcrypt = "0.15"
+
+# For creating and verifying JSON Web Tokens (JWT)
+jsonwebtoken = "9.2"
+
+# More powerful JSON handling, often used with JWT
+serde_json = "1.0"

@@ -1,0 +1,17 @@
+services:
+  # The name of our service
+  aksara-db:
+    image: postgres:16-alpine
+    container_name: aksara_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - aksara-postgres-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    restart: unless-stopped
+
+volumes:
+  aksara-postgres-data:
