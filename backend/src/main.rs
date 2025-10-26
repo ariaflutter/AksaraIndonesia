@@ -1,6 +1,6 @@
 // src/main.rs
 // Declare the modules we created. Rust will look for /bapas/mod.rs and /routes/mod.rs.
-mod types;
+pub mod types;
 mod bapas;
 mod routes;
 mod users;
@@ -10,6 +10,7 @@ use axum::{extract::Extension, Router};
 use dotenvy::dotenv;
 use sqlx::postgres::PgPoolOptions;
 use std::{env, net::SocketAddr};
+use std::time::Duration; 
 use tracing::info;
 #[tokio::main]
 async fn main() {
@@ -19,6 +20,9 @@ let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
 let pool = PgPoolOptions::new()
     .max_connections(5)
+    .acquire_timeout(Duration::from_secs(3)) // Timeout for getting a connection from the pool
+    .idle_timeout(Duration::from_secs(30)) // Close idle connections after 30s
+    .test_before_acquire(true) // Ping the DB before handing out a connection
     .connect(&database_url)
     .await
     .expect("Failed to connect to the database");
