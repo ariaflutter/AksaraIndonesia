@@ -83,7 +83,7 @@ CREATE TRIGGER set_timestamp BEFORE UPDATE ON penerimaan_dewasa FOR EACH ROW EXE
 -- Adult Legal History Table
 CREATE TABLE riwayat_hukum_dewasa (
     id SERIAL PRIMARY KEY,
-    penerimaan_dewasa_id INTEGER NOT NULL UNIQUE REFERENCES penerimaan_dewasa(id) ON DELETE CASCADE,
+    klien_id INTEGER NOT NULL UNIQUE REFERENCES klien(id) ON DELETE CASCADE,
     kategori_tindak_pidana VARCHAR(255),
     pasal_tindak_pidana TEXT,
     tanggal_surat_keputusan_pengadilan DATE,
@@ -102,7 +102,7 @@ CREATE TRIGGER set_timestamp BEFORE UPDATE ON riwayat_hukum_dewasa FOR EACH ROW 
 -- NEW: Adult Integration Service Table
 CREATE TABLE layanan_integrasi_dewasa (
     id SERIAL PRIMARY KEY,
-    penerimaan_dewasa_id INTEGER NOT NULL REFERENCES penerimaan_dewasa(id) ON DELETE CASCADE,
+    klien_id INTEGER NOT NULL REFERENCES klien(id) ON DELETE CASCADE,
     
     nomor_sk VARCHAR(255),
     tanggal_sk DATE,
@@ -148,6 +148,7 @@ CREATE TABLE wajib_lapor_dewasa (
 CREATE INDEX idx_klien_bapas_id ON klien(bapas_id);
 CREATE INDEX idx_klien_pk_id ON klien(pk_id);
 CREATE INDEX idx_penerimaan_dewasa_klien_id ON penerimaan_dewasa(klien_id);
-CREATE INDEX idx_layanan_integrasi_penerimaan_id ON layanan_integrasi_dewasa(penerimaan_dewasa_id);
-CREATE INDEX idx_log_proses_hukum_penerimaan_id ON proses_hukum_dewasa(penerimaan_id);
-CREATE INDEX idx_wajib_lapor_klien_id ON wajib_lapor_dewasa(klien_id);
+CREATE INDEX idx_layanan_integrasi_dewasa_klien_id ON layanan_integrasi_dewasa(klien_id); -- Corrected index
+CREATE INDEX idx_proses_hukum_dewasa_penerimaan_id ON proses_hukum_dewasa(penerimaan_dewasa_id); -- Corrected index
+CREATE INDEX idx_wajib_lapor_dewasa_klien_id ON wajib_lapor_dewasa(klien_id);
+CREATE INDEX idx_riwayat_hukum_dewasa_klien_id ON riwayat_hukum_dewasa(klien_id); -- Corrected index

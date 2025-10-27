@@ -22,6 +22,19 @@ pub fn create_api_router() -> Router {
                 .put(klien::handlers_core::update_klien)
                 .delete(klien::handlers_core::delete_klien)
         )
+         .route(
+            "/klien/:klien_id/penerimaan-dewasa",
+            post(klien::handlers_dewasa::create_penerimaan_dewasa)
+                .get(klien::handlers_dewasa::get_all_penerimaan_for_klien),
+        )
+        // Routes for a specific item, accessed directly by its own ID
+        .route(
+            "/penerimaan-dewasa/:id",
+            // We are missing a `get_penerimaan_by_id` handler, let's add it
+            get(klien::handlers_dewasa::get_penerimaan_by_id)
+            .put(klien::handlers_dewasa::update_penerimaan_dewasa)
+                .delete(klien::handlers_dewasa::delete_penerimaan_dewasa),
+        )
 
             // Add other protected routes here in the future
         .layer(middleware::from_fn(auth::middleware::auth));

@@ -90,3 +90,35 @@ pub enum JenisPekerjaan {
     
     Lainnya,
 }
+
+// in src/types.rs
+// ... add this to the bottom of the file
+
+// --- ADD THIS NEW ENUM ---
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, sqlx::Type)]
+#[sqlx(type_name = "nama_instansi")]
+pub enum NamaInstansi {
+    #[sqlx(rename = "Lembaga Pemasyarakatan")]
+    LembagaPemasyarakatan,
+    #[sqlx(rename = "Rumah Tahanan Negara")]
+    RumahTahananNegara,
+    #[sqlx(rename = "Balai Pemasyarakatan")]
+    BalaiPemasyarakatan,
+    #[sqlx(rename = "Kejaksaan Negeri")]
+    KejaksaanNegeri,
+    #[sqlx(rename = "Pengadilan Negeri")]
+    PengadilanNegeri,
+    #[sqlx(rename = "Kepolisian Resor")]
+    KepolisianResor,
+    #[sqlx(rename = "Kepolisian Sektor")]
+    KepolisianSektor,
+    #[sqlx(rename = "Kepolisian Daerah")]
+    KepolisianDaerah,
+    #[sqlx(rename = "Kepolisian Republik Indonesia")]
+    KepolisianRepublikIndonesia,
+    #[sqlx(rename = "Pengadilan Tinggi")]
+    PengadilanTinggi,
+    #[sqlx(rename = "Mahkamah Agung")]
+    MahkamahAgung,
+    Lainnya,
+}
