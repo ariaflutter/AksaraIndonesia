@@ -5,8 +5,7 @@ use bcrypt::verify;
 use jsonwebtoken::{encode, EncodingKey, Header};
 use sqlx::PgPool;
 use std::time::{SystemTime, UNIX_EPOCH};
-
-use crate::users::model::User; // We need the full User model to get the password hash
+use crate::users::model::User;
 use super::model::{Claims, LoginRequest, LoginResponse};
 
 // A secret key for signing the JWT.
@@ -67,4 +66,36 @@ pub async fn login(
     // 5. Send the token back to the user.
     let response = LoginResponse { token };
     Ok(Json(response))
+}
+
+pub async fn me(
+    Extension(pool): Extension<PgPool>,
+    Extension(claims): Extension<Claims>, // Middleware provides the user's claims.
+) -> Result<Json<User>, StatusCode> {
+
+    // The user ID is in the 'sub' field of the token claims.
+    let user_id = claims.sub;
+
+    // Fetch the user from the database using the ID from the token.
+    let user = sqlx::query_as!(
+        User,
+        r#"
+        SELECT 
+            id, nip, nama, gelar_depan, gelar_belakang, pangkat_golongan, jabatan,
+            unit_kerja_id, status_kepegawaian AS "status_kepegawaian: _", email, nomor_telepon,
+            status_aktif AS "status_aktif: _", role AS "role: _", password_hash
+        FROM users 
+        WHERE id = $1
+        "#,
+        user_id
+    )
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to fetch user profile: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?
+    .ok_or(StatusCode::NOT_FOUND)?; // This would mean the user was deleted after the token was issued.
+
+    Ok(Json(user))
 }
