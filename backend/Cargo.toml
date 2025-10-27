@@ -13,7 +13,7 @@ axum = "0.7"
 tokio = { version = "1", features = ["full"] }
 
 # The toolkit for connecting to our PostgreSQL database
-sqlx = { version = "0.7", features = [ "runtime-tokio-rustls", "postgres", "macros", "chrono" ] }
+sqlx = { version = "0.7", features = [ "runtime-tokio-rustls", "postgres", "macros", "chrono", "rust_decimal" ] }
 
 # The standard library for serializing and deserializing data (e.g., to/from JSON)
 serde = { version = "1.0", features = ["derive"] }
@@ -36,3 +36,7 @@ jsonwebtoken = "9.2"
 
 # More powerful JSON handling, often used with JWT
 serde_json = "1.0"
+
+# CORRECTED rust_decimal lines: enable the "sqlx-postgres" feature
+rust_decimal = { version = "1.35", features = ["db-postgres", "serde-with-float"] }
+rust_decimal_macros = "1.35"

@@ -293,8 +293,9 @@ pub async fn update_klien(
             pendidikan_terakhir = COALESCE($9, pendidikan_terakhir),
             bapas_id = COALESCE($10, bapas_id),
             pk_id = COALESCE($11, pk_id),
-            updated_by = $12
-        WHERE id = $13
+             online_akses = COALESCE($12, online_akses), -- <-- ADD THIS LINE
+            updated_by = $13
+        WHERE id = $14
         RETURNING *
         "#,
     )
@@ -309,6 +310,7 @@ pub async fn update_klien(
     .bind(payload.pendidikan_terakhir)
     .bind(payload.bapas_id)
     .bind(payload.pk_id)
+    .bind(payload.online_akses)
     .bind(updated_by_id)
     .bind(id)
     .fetch_one(&pool)

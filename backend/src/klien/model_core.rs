@@ -19,6 +19,7 @@ pub struct Klien {
     pub pendidikan_terakhir: Option<TingkatPendidikan>,
     pub bapas_id: i32,
     pub pk_id: i32,
+    pub online_akses: bool, // <-- ADD THIS
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
     pub created_by: Option<i32>,
@@ -55,4 +56,5 @@ pub struct UpdateKlien {
     pub pendidikan_terakhir: Option<TingkatPendidikan>,
     pub bapas_id: Option<i32>,
     pub pk_id: Option<i32>,
+    pub online_akses: bool, // <-- ADD THIS
 }

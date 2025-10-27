@@ -149,6 +149,6 @@ CREATE INDEX idx_klien_bapas_id ON klien(bapas_id);
 CREATE INDEX idx_klien_pk_id ON klien(pk_id);
 CREATE INDEX idx_penerimaan_dewasa_klien_id ON penerimaan_dewasa(klien_id);
 CREATE INDEX idx_layanan_integrasi_dewasa_klien_id ON layanan_integrasi_dewasa(klien_id); -- Corrected index
-CREATE INDEX idx_proses_hukum_dewasa_penerimaan_id ON proses_hukum_dewasa(penerimaan_dewasa_id); -- Corrected index
+CREATE INDEX idx_proses_hukum_dewasa_penerimaan_id ON proses_hukum_dewasa(penerimaan_id); -- Corrected index
 CREATE INDEX idx_wajib_lapor_dewasa_klien_id ON wajib_lapor_dewasa(klien_id);
 CREATE INDEX idx_riwayat_hukum_dewasa_klien_id ON riwayat_hukum_dewasa(klien_id); -- Corrected index

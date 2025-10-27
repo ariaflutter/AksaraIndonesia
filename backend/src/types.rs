@@ -122,3 +122,11 @@ pub enum NamaInstansi {
     MahkamahAgung,
     Lainnya,
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, sqlx::Type)]
+#[sqlx(type_name = "metode_lapor_enum", rename_all = "PascalCase")]
+pub enum MetodeLapor {
+    Mandiri,
+    Petugas,
+    MandiriDiKantor, // <-- ADD THIS NEW VARIANT
+}
