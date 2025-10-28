@@ -40,3 +40,5 @@ serde_json = "1.0"
 # CORRECTED rust_decimal lines: enable the "sqlx-postgres" feature
 rust_decimal = { version = "1.35", features = ["db-postgres", "serde-with-float"] }
 rust_decimal_macros = "1.35"
+
+tower-http = { version = "0.5.0", features = ["cors"] }
