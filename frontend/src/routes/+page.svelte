@@ -1,9 +1,15 @@
 <!-- src/routes/(public)/+page.svelte -->
 
+<script lang="ts">
+ import { Button } from "$lib/components/ui/button";
+</script>
+ 
+
 <div class="hero">
   <h1>Selamat Datang di Aksara</h1>
   <p>Aplikasi Kendali dan Supervisi Klien Pemasyarakatan</p>
   <a href="/login" class="cta-button">Masuk ke Aplikasi</a>
+  <Button>Click me</Button>
 </div>
 
 <style>
