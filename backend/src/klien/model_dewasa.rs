@@ -1,6 +1,6 @@
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
-use crate::types::{NamaInstansi, MetodeLapor}; // Make sure MetodeLapor is here
+use crate::types::{NamaInstansi, MetodeLaporEnum}; // Make sure MetodeLapor is here
 use rust_decimal::Decimal; // <-- ADD THIS IMPORT
 
 // This struct represents a `penerimaan_dewasa` record as it is READ from the database.
@@ -152,7 +152,7 @@ pub struct WajibLaporDewasa {
     pub photo_path: Option<String>,
     pub latitude: Option<Decimal>,
     pub longitude: Option<Decimal>,
-    pub metode_lapor: MetodeLapor, // <-- ADD THIS
+    pub metode_lapor: MetodeLaporEnum, // <-- ADD THIS
     pub created_at: chrono::DateTime<chrono::Utc>,
 
 }
@@ -163,9 +163,9 @@ pub struct CreateWajibLaporDewasa {
     pub latitude: Option<Decimal>,
     pub longitude: Option<Decimal>,
     #[serde(default = "default_metode_lapor")]
-    pub _metode_lapor: MetodeLapor, // <-- This is the unused field
+    pub _metode_lapor: MetodeLaporEnum, // <-- This is the unused field
 }
 // A helper function for serde to provide the default value.
-fn default_metode_lapor() -> MetodeLapor {
-    MetodeLapor::Petugas
+fn default_metode_lapor() -> MetodeLaporEnum {
+    MetodeLaporEnum::Petugas
 }

@@ -16,7 +16,7 @@ tokio = { version = "1", features = ["full"] }
 sqlx = { version = "0.7", features = [ "runtime-tokio-rustls", "postgres", "macros", "chrono", "rust_decimal" ] }
 
 # The standard library for serializing and deserializing data (e.g., to/from JSON)
-serde = { version = "1.0", features = ["derive"] }
+serde = { version = "1.0", features = ["derive", "rc"] }
 
 # For logging what's happening in our application
 tracing = "0.1"
@@ -42,3 +42,12 @@ rust_decimal = { version = "1.35", features = ["db-postgres", "serde-with-float"
 rust_decimal_macros = "1.35"
 
 tower-http = { version = "0.5.0", features = ["cors"] }
+
+ts-rs = "8.0"
+
+
+
+[build-dependencies]
+dotenvy = "0.15"
+postgres = { version = "0.19", features = ["with-chrono-0_4"] }
+heck = "0.5" # For converting string cases (snake_case to PascalCase)

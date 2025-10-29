@@ -52,6 +52,7 @@ pub async fn login(
         sub: user.id,
         role: user.role,
         unit_kerja_id: user.unit_kerja_id,
+        kanwil_id: user.kanwil_id,
         // Token expires in 1 day.
         exp: (now + 60 * 60 * 24) as usize,
     };
@@ -82,7 +83,7 @@ pub async fn me(
         r#"
         SELECT 
             id, nip, nama, gelar_depan, gelar_belakang, pangkat_golongan, jabatan,
-            unit_kerja_id, status_kepegawaian AS "status_kepegawaian: _", email, nomor_telepon,
+            unit_kerja_id,kanwil_id, status_kepegawaian AS "status_kepegawaian: _", email, nomor_telepon,
             status_aktif AS "status_aktif: _", role AS "role: _", password_hash
         FROM users 
         WHERE id = $1

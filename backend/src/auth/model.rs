@@ -23,4 +23,5 @@ pub struct Claims {
     pub role: UserRole,
     pub unit_kerja_id: Option<i32>,
     pub exp: usize, // Expiration time
+    pub kanwil_id: Option<i32>,
 }

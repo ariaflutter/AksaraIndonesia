@@ -47,14 +47,14 @@ pub async fn create_bapas(
     // The `RETURNING *` part is a PostgreSQL feature that returns the entire
     // newly created row, which we can then send back to the user.
     let new_bapas = sqlx::query_as::<_, Bapas>(
-        "INSERT INTO bapas (nama_bapas, kota, alamat, nomor_telepon_bapas, email) VALUES ($1, $2, $3, $4, $5) RETURNING *"
+        "INSERT INTO bapas (nama_bapas, kota_bapas, alamat_bapas, nomor_telepon_bapas, email_bapas, kanwil_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *"
     )
     .bind(&payload.nama_bapas)
-    .bind(&payload.kota)
-    .bind(&payload.alamat)
+    .bind(&payload.kota_bapas)
+    .bind(&payload.alamat_bapas)
     .bind(&payload.nomor_telepon_bapas)
-    .bind(&payload.email)
-    .bind(&payload.kanwil)
+    .bind(&payload.email_bapas)
+    .bind(&payload.kanwil_id)
     .fetch_one(&pool) // Use `fetch_one` because RETURNING * will always return exactly one row.
     .await
     .map_err(|e| {
@@ -107,15 +107,15 @@ pub async fn update_bapas(
     //     return Err(StatusCode::FORBIDDEN);
     // }
 
-    let query = "UPDATE bapas SET nama_bapas = $1, kota = $2, alamat = $3, nomor_telepon_bapas = $4, email = $5, kanwil = $6 WHERE id = $7 RETURNING *";
+    let query = "UPDATE bapas SET nama_bapas = $1, kota_bapas = $2, alamat_bapas = $3, nomor_telepon_bapas = $4, email_bapas = $5, kanwil_id = $6 WHERE id = $7 RETURNING *";
 
     let updated_bapas = sqlx::query_as::<_, Bapas>(query)
         .bind(&payload.nama_bapas)
-        .bind(&payload.kota)
-        .bind(&payload.alamat)
+        .bind(&payload.kota_bapas)
+        .bind(&payload.alamat_bapas)
         .bind(&payload.nomor_telepon_bapas)
-        .bind(&payload.email)
-        .bind(&payload.kanwil) // You have this as an Option, so bind it.
+        .bind(&payload.email_bapas)
+        .bind(&payload.kanwil_id) // You have this as an Option, so bind it.
         .bind(id)
         .fetch_optional(&pool)
         .await

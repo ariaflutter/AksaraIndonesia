@@ -6,11 +6,11 @@ use serde::{Deserialize}; // <-- Make sure Deserialize is imported
 pub struct Bapas {
     pub id: i32,
     pub nama_bapas: String,
-    pub kota: String,
-    pub alamat: Option<String>,
+    pub kota_bapas: String,
+    pub alamat_bapas: Option<String>,
     pub nomor_telepon_bapas: Option<String>,
-    pub email: Option<String>,
-    pub kanwil :Option<String>,
+    pub email_bapas: Option<String>,
+    pub kanwil_id :i32
 }
 
 // --- ADD THIS NEW STRUCT ---
@@ -19,9 +19,9 @@ pub struct Bapas {
 #[derive(Debug, Deserialize)]
 pub struct CreateBapas {
     pub nama_bapas: String,
-    pub kota: String,
-    pub alamat: Option<String>,
+    pub kota_bapas: String,
+    pub alamat_bapas: Option<String>,
     pub nomor_telepon_bapas: Option<String>,
-    pub email: Option<String>,
-    pub kanwil :Option<String>,
+    pub email_bapas: Option<String>,
+    pub kanwil_id :i32,
 }

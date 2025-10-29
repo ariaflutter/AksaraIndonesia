@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO users (nip, nama, password_hash, role, status_kepegawaian, status_aktif)\n        VALUES ($1, $2, $3, 'SuperAdmin'::user_role, 'Aktif'::user_status_kepegawaian, 'Aktif'::user_status_aktif)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Varchar",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "32abc31d76a2ebdb9712c8bad2eb303b5eda1080e22dca29cd3611f591d43512"
+}

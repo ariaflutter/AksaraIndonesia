@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT bapas_id, pk_id FROM klien WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "bapas_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "pk_id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "4f692c4b531ee962db76fafc46eb4be3bc7368dfb1967881d2738a5c5d440d86"
+}

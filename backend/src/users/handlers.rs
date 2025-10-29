@@ -77,7 +77,7 @@ pub async fn create_user(
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         RETURNING
             id, nip, nama, gelar_depan, gelar_belakang, pangkat_golongan, jabatan,
-            unit_kerja_id, status_kepegawaian AS "status_kepegawaian: _", email, nomor_telepon,
+            unit_kerja_id, kanwil_id,status_kepegawaian AS "status_kepegawaian: _", email, nomor_telepon,
             status_aktif AS "status_aktif: _", role AS "role: _", password_hash
         "#,
         payload.nip,
@@ -163,6 +163,12 @@ pub async fn update_user(
     // 2. Perform Authorization Checks
     match claims.role {
         UserRole::SuperAdmin => { /* SuperAdmin can do anything, proceed */ }
+        UserRole::AdminKanwil => {
+            if user_to_update.kanwil_id != claims.kanwil_id {
+                return Err(StatusCode::FORBIDDEN);
+            }
+        },
+
         UserRole::AdminBapas => {
             // AdminBapas can only update users in their own unit.
             if user_to_update.unit_kerja_id != claims.unit_kerja_id {
@@ -202,16 +208,17 @@ pub async fn update_user(
             pangkat_golongan = COALESCE($5, pangkat_golongan),
             jabatan = COALESCE($6, jabatan),
             unit_kerja_id = COALESCE($7, unit_kerja_id),
-            status_kepegawaian = COALESCE($8, status_kepegawaian),
-            email = COALESCE($9, email),
-            nomor_telepon = COALESCE($10, nomor_telepon),
-            status_aktif = COALESCE($11, status_aktif),
-            role = COALESCE($12, role),
-            password_hash = $13
-        WHERE id = $14
+            kanwil_id = COALESCE($8, kanwil_id),
+            status_kepegawaian = COALESCE($9, status_kepegawaian),
+            email = COALESCE($10, email),
+            nomor_telepon = COALESCE($11, nomor_telepon),
+            status_aktif = COALESCE($12, status_aktif),
+            role = COALESCE($13, role),
+            password_hash = $14
+        WHERE id = $15
         RETURNING
             id, nip, nama, gelar_depan, gelar_belakang, pangkat_golongan, jabatan,
-            unit_kerja_id, status_kepegawaian AS "status_kepegawaian: _", email, nomor_telepon,
+            unit_kerja_id, kanwil_id,status_kepegawaian AS "status_kepegawaian: _", email, nomor_telepon,
             status_aktif AS "status_aktif: _", role AS "role: _", password_hash
         "#,
         payload.nip,
@@ -221,6 +228,7 @@ pub async fn update_user(
         payload.pangkat_golongan,
         payload.jabatan,
         payload.unit_kerja_id,
+        payload.kanwil_id,
         payload.status_kepegawaian as _,
         payload.email,
         payload.nomor_telepon,

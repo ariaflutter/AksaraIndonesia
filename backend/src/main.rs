@@ -6,6 +6,7 @@ mod routes;
 mod users;
 mod auth; 
 mod klien;
+mod kanwil;
 pub mod utils;
 
 use axum::{extract::Extension, Router};
@@ -13,7 +14,7 @@ use dotenvy::dotenv;
 use sqlx::postgres::PgPoolOptions;
 use std::{env, net::SocketAddr};
 use std::time::Duration; 
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::{CorsLayer};
 use axum::http::Method;
 use tracing::info;
 #[tokio::main]

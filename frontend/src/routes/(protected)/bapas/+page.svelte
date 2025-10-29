@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { authToken } from '$lib/stores';
 
-  // Define a type for our Bapas object to get TypeScript benefits
+  // --- Types ---
   type Bapas = {
     id: number;
     nama_bapas: string;
@@ -13,12 +13,11 @@
     kanwil: string | null;
   };
 
-  // State for the list of Bapas offices
+  // --- State ---
   let bapasList: Bapas[] = [];
   let isLoading = true;
   let errorMessage = '';
 
-  // State for the "Create New Bapas" form
   let newBapas: Partial<Bapas> = {
     nama_bapas: '',
     kota: '',
@@ -28,155 +27,129 @@
     nomor_telepon_bapas: ''
   };
 
-    let isModalOpen = false;
-  // Use `Partial<Bapas>` to allow for an initially empty object
-  let editingBapas: Partial<Bapas> = {}; 
+  let isModalOpen = false;
+  let editingBapas: Partial<Bapas> = {};
 
-
-  // --- Data Fetching ---
+  // --- Fetch Data ---
   async function fetchBapas() {
     isLoading = true;
     const token = $authToken;
     if (!token) return;
 
     try {
-      const response = await fetch('http://127.0.0.1:3000/api/bapas', {
+      const res = await fetch('http://127.0.0.1:3000/api/bapas', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (!response.ok) throw new Error('Gagal mengambil data Bapas.');
-      bapasList = await response.json();
-    } catch (error) {
-      errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      if (!res.ok) throw new Error('Gagal mengambil data Bapas.');
+      bapasList = await res.json();
+    } catch (err) {
+      errorMessage = err instanceof Error ? err.message : 'Unknown error';
     } finally {
       isLoading = false;
     }
   }
 
-  // --- Form Submission ---
+  // --- Create ---
   async function handleCreateBapas() {
     const token = $authToken;
     if (!token) return;
 
     try {
-      const response = await fetch('http://127.0.0.1:3000/api/bapas', {
+      const res = await fetch('http://127.0.0.1:3000/api/bapas', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`
         },
         body: JSON.stringify(newBapas)
       });
 
-      if (!response.ok) throw new Error('Gagal membuat Bapas baru.');
+      if (!res.ok) throw new Error('Gagal membuat Bapas baru.');
 
-      // Success! Reset the form and refresh the list.
       newBapas = { nama_bapas: '', kota: '', kanwil: '' };
-      await fetchBapas(); // Refresh the list to show the new entry
-
-    } catch (error) {
-      errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      await fetchBapas();
+    } catch (err) {
+      errorMessage = err instanceof Error ? err.message : 'Unknown error';
     }
   }
 
+  // --- Delete ---
   async function handleDelete(id: number) {
-    // A simple browser confirmation dialog is good practice
-    if (!confirm('Apakah Anda yakin ingin menghapus Bapas ini?')) {
-      return;
-    }
+    if (!confirm('Apakah Anda yakin ingin menghapus Bapas ini?')) return;
 
     const token = $authToken;
     if (!token) return;
 
     try {
-      const response = await fetch(`http://127.0.0.1:3000/api/bapas/${id}`, {
+      const res = await fetch(`http://127.0.0.1:3000/api/bapas/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
+      if (!res.ok) throw new Error('Gagal menghapus Bapas.');
 
-      if (!response.ok) {
-        throw new Error('Gagal menghapus Bapas.');
-      }
-
-      // If successful, remove the item from our local list to update the UI instantly.
-      bapasList = bapasList.filter(bapas => bapas.id !== id);
-
-    } catch (error) {
-      errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      bapasList = bapasList.filter(b => b.id !== id);
+    } catch (err) {
+      errorMessage = err instanceof Error ? err.message : 'Unknown error';
     }
   }
 
-  // --- ADD NEW HANDLERS FOR THE EDIT MODAL ---
-  function openEditModal(bapasToEdit: Bapas) {
-    // Create a *copy* of the object to edit, so we don't change the table row directly.
-    editingBapas = { ...bapasToEdit };
+  // --- Edit Modal ---
+  function openEditModal(bapas: Bapas) {
+    editingBapas = { ...bapas };
     isModalOpen = true;
   }
 
   function closeEditModal() {
     isModalOpen = false;
-    editingBapas = {}; // Clear the object
+    editingBapas = {};
   }
 
   async function handleUpdate() {
     if (!editingBapas.id) return;
-
     const token = $authToken;
     if (!token) return;
-    
+
     try {
-      const response = await fetch(`http://127.0.0.1:3000/api/bapas/${editingBapas.id}`, {
+      const res = await fetch(`http://127.0.0.1:3000/api/bapas/${editingBapas.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`
         },
         body: JSON.stringify(editingBapas)
       });
 
-      if (!response.ok) {
-        throw new Error('Gagal mengupdate Bapas.');
-      }
+      if (!res.ok) throw new Error('Gagal mengupdate Bapas.');
 
-      const updatedBapas = await response.json();
+      const updated = await res.json();
+      const idx = bapasList.findIndex(b => b.id === updated.id);
+      if (idx !== -1) bapasList[idx] = updated;
 
-      // Find the index of the old item and replace it with the updated one.
-      const index = bapasList.findIndex(b => b.id === updatedBapas.id);
-      if (index !== -1) {
-        bapasList[index] = updatedBapas;
-      }
-
-      closeEditModal(); // Close the modal on success
-
-    } catch (error) {
-      // You could show an error inside the modal here
-      errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      closeEditModal();
+    } catch (err) {
+      errorMessage = err instanceof Error ? err.message : 'Unknown error';
     }
   }
 
-  // onMount is a lifecycle function that runs when the component is first created.
-  // We'll fetch the data here.
   onMount(fetchBapas);
-
 </script>
 
+<!-- --- UI --- -->
 <h2>Manajemen Bapas</h2>
 
-<!-- Form for creating a new Bapas -->
-<div class="form-container">
+<section class="form-container">
   <h3>Buat Bapas Baru</h3>
   <form on:submit|preventDefault={handleCreateBapas}>
-    <input type="text" placeholder="Nama Bapas" bind:value={newBapas.nama_bapas} required />
-    <input type="text" placeholder="Kota" bind:value={newBapas.kota} required />
-    <input type="text" placeholder="Kanwil" bind:value={newBapas.kanwil} required />
-    <button type="submit">Tambah Bapas</button>
+    <input placeholder="Nama Bapas" bind:value={newBapas.nama_bapas} required />
+    <input placeholder="Kota" bind:value={newBapas.kota} required />
+    <input placeholder="Kanwil" bind:value={newBapas.kanwil} required />
+    <button type="submit" class="btn-primary">Tambah</button>
   </form>
-</div>
+</section>
 
-
-<!-- Table to display the list of Bapas -->
-<div class="table-container">
+<section class="table-container">
   {#if isLoading}
-    <p>Loading data Bapas...</p>
+    <p>Memuat data Bapas...</p>
   {:else if errorMessage}
     <p class="error">{errorMessage}</p>
   {:else}
@@ -191,114 +164,196 @@
         </tr>
       </thead>
       <tbody>
-        {#each bapasList as bapas}
+        {#each bapasList as b}
           <tr>
-            <td>{bapas.id}</td>
-            <td>{bapas.nama_bapas}</td>
-            <td>{bapas.kota}</td>
-            <td>{bapas.kanwil}</td>
+            <td>{b.id}</td>
+            <td>{b.nama_bapas}</td>
+            <td>{b.kota}</td>
+            <td>{b.kanwil}</td>
             <td>
-                <button class="edit" on:click={() => openEditModal(bapas)}>Edit</button>
-              <button class="delete" on:click={() => handleDelete(bapas.id)}>Delete</button>
+              <button class="btn-edit" on:click={() => openEditModal(b)}>Edit</button>
+              <button class="btn-delete" on:click={() => handleDelete(b.id)}>Hapus</button>
             </td>
           </tr>
         {/each}
       </tbody>
     </table>
   {/if}
-</div>
+</section>
+
 {#if isModalOpen}
   <div class="modal-overlay" on:click={closeEditModal}>
-    <div class="modal-content" on:click|stopPropagation>
+    <div class="modal" on:click|stopPropagation>
       <h3>Edit Bapas</h3>
       <form on:submit|preventDefault={handleUpdate}>
-        <div class="form-group">
-          <label for="edit-nama">Nama Bapas</label>
-          <input id="edit-nama" type="text" bind:value={editingBapas.nama_bapas} required />
-        </div>
-        <div class="form-group">
-          <label for="edit-kota">Kota</label>
-          <input id="edit-kota" type="text" bind:value={editingBapas.kota} required />
-        </div>
-        <div class="form-group">
-          <label for="edit-kanwil">Kanwil</label>
-          <input id="edit-kanwil" type="text" bind:value={editingBapas.kanwil} required />
-        </div>
-        <!-- Add other fields like alamat, email etc. here if you want them to be editable -->
+        <label>
+          Nama Bapas
+          <input bind:value={editingBapas.nama_bapas} required />
+        </label>
+        <label>
+          Kota
+          <input bind:value={editingBapas.kota} required />
+        </label>
+        <label>
+          Kanwil
+          <input bind:value={editingBapas.kanwil} required />
+        </label>
+
         <div class="modal-actions">
-          <button type="button" class="cancel" on:click={closeEditModal}>Batal</button>
-          <button type="submit" class="save">Simpan Perubahan</button>
+          <button type="button" class="btn-cancel" on:click={closeEditModal}>Batal</button>
+          <button type="submit" class="btn-save">Simpan</button>
         </div>
       </form>
     </div>
   </div>
 {/if}
 
-
 <style>
+  /* --- General --- */
   h2 {
-    margin-bottom: 2rem;
+    font-size: 1.8rem;
+    margin-bottom: 1.5rem;
   }
-  .form-container, .table-container {
-    padding: 1.5rem;
-    border: 1px solid #eee;
-    border-radius: 8px;
-    margin-bottom: 2rem;
+
+  h3 {
+    margin-bottom: 1rem;
   }
+
   input {
-    padding: 0.5rem;
+    padding: 0.5rem 0.75rem;
     margin-right: 0.5rem;
     border: 1px solid #ccc;
-    border-radius: 4px;
+    border-radius: 6px;
   }
+
+  button {
+    cursor: pointer;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    transition: background-color 0.2s ease;
+  }
+
+  /* --- Buttons --- */
+  .btn-primary {
+    background: #007bff;
+    color: #fff;
+  }
+
+  .btn-primary:hover {
+    background: #0069d9;
+  }
+
+  .btn-edit {
+    background: #ffc107;
+    color: #222;
+    margin-right: 0.25rem;
+  }
+
+  .btn-edit:hover {
+    background: #e0a800;
+  }
+
+  .btn-delete {
+    background: #dc3545;
+    color: #fff;
+  }
+
+  .btn-delete:hover {
+    background: #c82333;
+  }
+
+  .btn-cancel {
+    background: #6c757d;
+    color: #fff;
+  }
+
+  .btn-cancel:hover {
+    background: #5a6268;
+  }
+
+  .btn-save {
+    background: #28a745;
+    color: #fff;
+  }
+
+  .btn-save:hover {
+    background: #218838;
+  }
+
+  /* --- Containers --- */
+  .form-container,
+  .table-container {
+    background: #fff;
+    padding: 1.5rem;
+    border-radius: 12px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    margin-bottom: 2rem;
+  }
+
+  /* --- Table --- */
   table {
     width: 100%;
     border-collapse: collapse;
   }
-  th, td {
+
+  th,
+  td {
     padding: 0.75rem;
     text-align: left;
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid #eee;
   }
-  th {
-    background-color: #f2f2f2;
-  }
-  .edit { background-color: #ffc107; }
-  .delete { background-color: #dc3545; color: white; }
 
+  th {
+    background: #f8f9fa;
+    font-weight: 600;
+  }
+
+  tr:hover td {
+    background: #f9f9f9;
+  }
+
+  /* --- Modal --- */
   .modal-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.6);
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
     display: flex;
-    justify-content: center;
     align-items: center;
+    justify-content: center;
+    z-index: 100;
   }
-  .modal-content {
-    background-color: white;
+
+  .modal {
+    background: #fff;
+    border-radius: 10px;
     padding: 2rem;
-    border-radius: 8px;
     width: 90%;
-    max-width: 500px;
+    max-width: 480px;
   }
-  .modal-content h3 {
+
+  .modal h3 {
     margin-top: 0;
+    margin-bottom: 1rem;
   }
+
+  label {
+    display: block;
+    margin-bottom: 0.75rem;
+  }
+
+  label input {
+    width: 100%;
+    margin-top: 0.25rem;
+  }
+
   .modal-actions {
-    margin-top: 1.5rem;
     display: flex;
     justify-content: flex-end;
+    margin-top: 1.5rem;
   }
-  .modal-actions button {
-    margin-left: 0.5rem;
-  }
-  .cancel {
-    background-color: #6c757d;
-  }
-  .save {
-    background-color: #28a745;
+
+  .error {
+    color: #dc3545;
   }
 </style>

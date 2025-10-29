@@ -17,6 +17,7 @@ pub struct User {
     pub pangkat_golongan: Option<String>,
     pub jabatan: Option<String>,
     pub unit_kerja_id: Option<i32>,
+    pub kanwil_id: Option<i32>,
     pub status_kepegawaian: UserStatusKepegawaian,
     pub email: Option<String>,
     pub nomor_telepon: Option<String>,
@@ -40,6 +41,7 @@ pub struct CreateUser {
     pub pangkat_golongan: Option<String>,
     pub jabatan: Option<String>,
     pub unit_kerja_id: Option<i32>,
+    pub kanwil_id: Option<i32>, // <-- ADD THIS LINE
     pub status_kepegawaian: UserStatusKepegawaian,
     pub email: Option<String>,
     pub nomor_telepon: Option<String>,
@@ -58,6 +60,7 @@ pub struct UpdateUser {
     pub pangkat_golongan: Option<String>,
     pub jabatan: Option<String>,
     pub unit_kerja_id: Option<i32>,
+    pub kanwil_id: Option<i32>, // <-- ADD THIS LINE
     pub status_kepegawaian: Option<UserStatusKepegawaian>,
     pub email: Option<String>,
     pub nomor_telepon: Option<String>,

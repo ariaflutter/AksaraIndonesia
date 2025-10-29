@@ -1,0 +1,186 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO users (\n            nip, nama, gelar_depan, gelar_belakang, pangkat_golongan, jabatan,\n            unit_kerja_id, status_kepegawaian, email, nomor_telepon,\n            status_aktif, role, password_hash\n        )\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)\n        RETURNING\n            id, nip, nama, gelar_depan, gelar_belakang, pangkat_golongan, jabatan,\n            unit_kerja_id, kanwil_id,status_kepegawaian AS \"status_kepegawaian: _\", email, nomor_telepon,\n            status_aktif AS \"status_aktif: _\", role AS \"role: _\", password_hash\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "nip",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "nama",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "gelar_depan",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "gelar_belakang",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "pangkat_golongan",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "jabatan",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "unit_kerja_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "kanwil_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 9,
+        "name": "status_kepegawaian: _",
+        "type_info": {
+          "Custom": {
+            "name": "user_status_kepegawaian",
+            "kind": {
+              "Enum": [
+                "Aktif",
+                "PindahJabatan",
+                "Pensiun",
+                "Lainya"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "email",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 11,
+        "name": "nomor_telepon",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 12,
+        "name": "status_aktif: _",
+        "type_info": {
+          "Custom": {
+            "name": "user_status_aktif",
+            "kind": {
+              "Enum": [
+                "Aktif",
+                "Deaktif"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "role: _",
+        "type_info": {
+          "Custom": {
+            "name": "user_role",
+            "kind": {
+              "Enum": [
+                "Pegawai",
+                "AdminBapas",
+                "SuperAdmin",
+                "AdminKanwil"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "password_hash",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Varchar",
+        "Varchar",
+        "Varchar",
+        "Varchar",
+        "Varchar",
+        "Int4",
+        {
+          "Custom": {
+            "name": "user_status_kepegawaian",
+            "kind": {
+              "Enum": [
+                "Aktif",
+                "PindahJabatan",
+                "Pensiun",
+                "Lainya"
+              ]
+            }
+          }
+        },
+        "Varchar",
+        "Varchar",
+        {
+          "Custom": {
+            "name": "user_status_aktif",
+            "kind": {
+              "Enum": [
+                "Aktif",
+                "Deaktif"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "user_role",
+            "kind": {
+              "Enum": [
+                "Pegawai",
+                "AdminBapas",
+                "SuperAdmin",
+                "AdminKanwil"
+              ]
+            }
+          }
+        },
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "3e459f106c8b4d472bb18275d67ca51ab32d9cec66de515d2edd09ca588ed9ac"
+}

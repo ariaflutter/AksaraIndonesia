@@ -50,22 +50,67 @@ impl AuthContext {
     pub fn is_in_same_bapas(&self) -> bool {
         self.user_bapas_id.is_some() && self.user_bapas_id == Some(self.klien_bapas_id)
     }
+    
 }
 
 
 /// Helper function to authorize a user for a given klien.
-pub async fn authorize_user_for_klien(
+async fn authorize_user_for_klien(
     pool: &PgPool,
     klien_id: i32,
     claims: &Claims,
 ) -> Result<(), StatusCode> {
-    let auth_context = AuthContext::new(pool, klien_id, claims).await?;
-    let authorized = match auth_context.user_role {
+    // FIX 1: This query now correctly assigns the record if found, or returns an error if not.
+    // The variable `klien_ownership` is now guaranteed to be the record struct.
+    let klien_ownership = sqlx::query!(
+        "SELECT bapas_id, pk_id FROM klien WHERE id = $1",
+        klien_id
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .ok_or(StatusCode::NOT_FOUND)?; // Note the added semicolon
+
+    let authorized = match claims.role {
         crate::types::UserRole::SuperAdmin => true,
-        crate::types::UserRole::AdminBapas => auth_context.is_in_same_bapas(),
-        crate::types::UserRole::Pegawai => auth_context.klien_pk_id == auth_context.user_id,
+
+        crate::types::UserRole::AdminKanwil => {
+            let admin_kanwil_id = match claims.kanwil_id {
+                Some(id) => id,
+                // FIX 3: If an admin has no kanwil_id, they are not authorized.
+                None => return Err(StatusCode::FORBIDDEN),
+            };
+
+            // FIX 4: fetch_one + map_err handles all errors. No .ok_or needed.
+            let bapas_kanwil_id = sqlx::query_scalar!(
+                "SELECT kanwil_id FROM bapas WHERE id = $1",
+                klien_ownership.bapas_id
+            )
+            .fetch_one(pool)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            
+            admin_kanwil_id == bapas_kanwil_id
+        }
+
+        crate::types::UserRole::AdminBapas => {
+            // Using .is_some() and .unwrap() is safer than unwrap_or(-1)
+            // It correctly handles the case where unit_kerja_id is None.
+            if let Some(user_bapas_id) = claims.unit_kerja_id {
+                klien_ownership.bapas_id == user_bapas_id
+            } else {
+                false // If the admin isn't assigned to a Bapas, they can't access this.
+            }
+        }
+        
+        crate::types::UserRole::Pegawai => klien_ownership.pk_id == claims.sub,
     };
-    if authorized { Ok(()) } else { Err(StatusCode::FORBIDDEN) }
+
+    if authorized {
+        Ok(())
+    } else {
+        Err(StatusCode::FORBIDDEN)
+    }
 }
 // --- CREATE ---
 pub async fn create_penerimaan_dewasa(
@@ -591,7 +636,7 @@ pub async fn kiosk_wajib_lapor_dewasa(
         return Err(StatusCode::UNAUTHORIZED);
     }    
     // 2. Logic for a Kiosk-based report
-    let metode_lapor = crate::types::MetodeLapor::MandiriDiKantor;
+    let metode_lapor = crate::types::MetodeLaporEnum::MandiriDiKantor;
     let created_by: Option<i32> = None; // No officer is logged in.
 
     // 3. Insert the record into the database
@@ -639,7 +684,7 @@ pub async fn mandiri_wajib_lapor_dewasa(
     }
     
     // 3. Insert the record with the 'Mandiri' method and NULL creator.
-    let metode_lapor = crate::types::MetodeLapor::Mandiri;
+    let metode_lapor = crate::types::MetodeLaporEnum::Mandiri;
     let created_by: Option<i32> = None;
 
      let record = sqlx::query_as(
@@ -678,7 +723,7 @@ pub async fn petugas_wajib_lapor_dewasa(
     authorize_user_for_klien(&pool, klien_id, &claims).await?;
     
     // 2. Insert the record with the 'Petugas' method and the officer's ID.
-    let metode_lapor = crate::types::MetodeLapor::Petugas;
+    let metode_lapor = crate::types::MetodeLaporEnum::Petugas;
     let created_by = Some(claims.sub);
 
      let record = sqlx::query_as(
