@@ -1,47 +1,23 @@
-<!-- src/routes/(protected)/+page.svelte -->
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { authToken } from '$lib/stores';
-
-  let userProfile: any = null; // We'll store the user's profile here
-  let errorMessage = '';
-
-  onMount(async () => {
-    const token = $authToken; // Get the current token value from the store
-
-    if (!token) {
-      // This should ideally not happen because the layout protects us, but it's a good safeguard.
-      return;
-    }
-
-    try {
-      const response = await fetch('http://127.0.0.1:3000/api/auth/me', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Gagal mengambil profil pengguna.');
-      }
-
-      userProfile = await response.json();
-    } catch (error) {
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-    }
-  });
+  import data from "./data.js";
+  import * as Sidebar from "$lib/components/ui/sidebar/index.js";
+  import AppSidebar from "$lib/components/app-sidebar.svelte";
+  import SiteHeader from "$lib/components/site-header.svelte";
+  import SectionCards from "$lib/components/section-cards.svelte";
+  import ChartAreaInteractive from "$lib/components/chart-area-interactive.svelte";
+  import DataTable from "$lib/components/data-table.svelte";
 </script>
 
-<h2>Dashboard</h2>
 
-{#if userProfile}
-  <p>Selamat datang, <strong>{userProfile.nama}</strong>!</p>
-  <p>NIP: {userProfile.nip}</p>
-  <p>Role: {userProfile.role}</p>
-{:else if errorMessage}
-  <p class="error">{errorMessage}</p>
-{:else}
-  <p>Loading user profile...</p>
-{/if}
+
+    <div class="flex flex-1 flex-col">
+      <div class="@container/main flex flex-1 flex-col gap-2">
+        <div class="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+          <SectionCards />
+          <div class="px-4 lg:px-6">
+            <ChartAreaInteractive />
+          </div>
+          <DataTable {data} />
+        </div>
+      </div>
+    </div>
