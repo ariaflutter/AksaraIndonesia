@@ -1,4 +1,5 @@
 -- Add migration script here
+-- Add migration script here
 -- =============================================================================
 -- SKEMA MASTER AKSARA V1
 --
@@ -128,6 +129,9 @@ CREATE TYPE jenis_pekerjaan_enum AS ENUM (
 CREATE TYPE jenis_kelamin_enum AS ENUM ('Laki-laki', 'Perempuan');
 CREATE TYPE nama_instansi_enum AS ENUM ('Lembaga Pemasyarakatan', 'Rumah Tahanan Negara', 'Balai Pemasyarakatan','Kejaksaan Negeri', 'Pengadilan Negeri', 'Kepolisian Resor', 'Kepolisian Sektor', 'Kepolisian Daerah', 'Kepolisian Republik Indonesia', 'Pengadilan Tinggi', 'Mahkamah Agung','Lainnya');
 CREATE TYPE metode_lapor_enum AS ENUM ('Online', 'Self-Service', 'Petugas');
+CREATE TYPE kewarganegaraan_enum AS ENUM ('WNI', 'WNA'); -- Example values
+
+  
 
 
 -- =============================================================================
@@ -598,3 +602,8 @@ CREATE TRIGGER trg_sync_proses_hukum_anak_klien_id
     BEFORE INSERT ON proses_hukum_anak
     FOR EACH ROW
     EXECUTE FUNCTION sync_proses_hukum_anak_klien_id();
+
+CREATE TRIGGER trg_sync_user_kanwil
+    BEFORE INSERT OR UPDATE OF bapas_id ON users
+    FOR EACH ROW
+    EXECUTE FUNCTION sync_user_kanwil_id_from_bapas();
