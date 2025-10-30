@@ -113,6 +113,7 @@ CREATE TABLE klien (
     pendidikan_terakhir tingkat_pendidikan,
     bapas_id INTEGER NOT NULL REFERENCES bapas(id) ON DELETE RESTRICT,
     pk_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    kanwil_id INTEGER REFERENCES kanwil(id) ON DELETE SET NULL,
     online_akses BOOLEAN NOT NULL DEFAULT FALSE,
     pengulangan BOOLEAN NOT NULL DEFAULT FALSE, -- To detect recidivism
     kewarganegaraan kewarganegaraan_enum,

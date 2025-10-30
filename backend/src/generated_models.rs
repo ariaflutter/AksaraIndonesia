@@ -15,6 +15,7 @@ pub struct Kanwil {
     pub nomor_telepon_kanwil: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow, TS)]
@@ -29,6 +30,7 @@ pub struct Bapas {
     pub email_bapas: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow, TS)]
@@ -50,6 +52,7 @@ pub struct Users {
     pub role: UserRole,
     #[serde(skip_serializing)]
     pub password_hash: String,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow, TS)]
@@ -61,12 +64,13 @@ pub struct Klien {
     pub alamat: Option<String>,
     pub tempat_lahir: Option<String>,
     pub tanggal_lahir: Option<NaiveDate>,
-    pub jenis_kelamin: Option<String>,
+    pub jenis_kelamin: Option<JenisKelaminEnum>,
     pub agama: Option<String>,
     pub pekerjaan: Option<JenisPekerjaan>,
     pub pendidikan_terakhir: Option<TingkatPendidikan>,
     pub bapas_id: i32,
     pub pk_id: i32,
+    pub kanwil_id: Option<i32>,
     pub online_akses: bool,
     pub pengulangan: bool,
     pub kewarganegaraan: Option<KewarganegaraanEnum>,
@@ -78,6 +82,7 @@ pub struct Klien {
     pub updated_at: DateTime<Utc>,
     pub created_by: Option<i32>,
     pub updated_by: Option<i32>,
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 #[derive(TS)]

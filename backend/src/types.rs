@@ -5,6 +5,15 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, sqlx::Type, TS)]
+#[sqlx(type_name = "jenis_kelamin_enum")]
+#[ts(export)]
+pub enum JenisKelaminEnum {
+    #[sqlx(rename = "Laki-laki")] #[serde(rename = "Laki-laki")]
+    LakiLaki,
+    Perempuan,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, sqlx::Type, TS)]
 #[sqlx(type_name = "jenis_pekerjaan")]
 #[ts(export)]
 pub enum JenisPekerjaan {

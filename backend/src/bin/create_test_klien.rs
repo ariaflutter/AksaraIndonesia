@@ -1,125 +1,155 @@
-// Final corrected version of src/bin/seed_klien.rs
-
+use chrono::NaiveDate;
 use dotenvy::dotenv;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use sqlx::{postgres::PgPoolOptions, Type};
 use std::{env, fs::File, io::BufReader};
-use chrono::NaiveDate;
 
 // -----------------------------------------------------------------------------
-// ENUM DEFINITIONS — Must match PostgreSQL ENUMs
+// ENUM DEFINITIONS — Must match PostgreSQL ENUMs (but JSON is case-insensitive)
 // -----------------------------------------------------------------------------
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Type)]
 #[sqlx(type_name = "tipe_klien", rename_all = "PascalCase")]
 pub enum TipeKlien {
     Dewasa,
     Anak,
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Type)]
-#[sqlx(type_name = "tingkat_pendidikan", rename_all = "PascalCase")]
+// Case-insensitive deserializer for TipeKlien
+impl<'de> Deserialize<'de> for TipeKlien {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        match s.trim().to_lowercase().as_str() {
+            "dewasa" => Ok(Self::Dewasa),
+            "anak" => Ok(Self::Anak),
+            _ => Err(serde::de::Error::custom(format!(
+                "invalid tipe_klien: '{}'",
+                s
+            ))),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Type)]
+#[sqlx(type_name = "tingkat_pendidikan")]
 pub enum TingkatPendidikan {
-    #[serde(rename = "Tidak Sekolah")]
     #[sqlx(rename = "Tidak Sekolah")]
     TidakSekolah,
-    #[serde(rename = "SD Tidak Lulus")]
     #[sqlx(rename = "SD Tidak Lulus")]
-    SDTidakLulus,
-    #[serde(rename = "SD atau Sederajat")]
+    SdTidakLulus,
     #[sqlx(rename = "SD atau Sederajat")]
-    SDAtaoSederajat,
-    #[serde(rename = "SMP atau Sederajat")]
+    SdAtauSederajat,
     #[sqlx(rename = "SMP atau Sederajat")]
-    SMPAtauSederajat,
-    #[serde(rename = "SMA atau Sederajat")]
+    SmpAtauSederajat,
     #[sqlx(rename = "SMA atau Sederajat")]
-    SMAAtauSederajat,
-    #[serde(rename = "D1 atau Sederajat")]
+    SmaAtauSederajat,
     #[sqlx(rename = "D1 atau Sederajat")]
     D1AtauSederajat,
+    #[sqlx(rename = "D2 atau Sederajat")]
+    D2AtauSederajat,
+    #[sqlx(rename = "D3 atau Sederajat")]
+    D3AtauSederajat,
+    #[sqlx(rename = "S1 atau Sederajat")]
+    S1AtauSederajat,
+    #[sqlx(rename = "S2 atau Sederajat")]
+    S2AtauSederajat,
+    #[sqlx(rename = "S3 atau Sederajat")]
+    S3AtauSederajat,
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Type)]
-#[sqlx(type_name = "jenis_pekerjaan", rename_all = "PascalCase")]
-pub enum JenisPekerjaan {
-    #[serde(rename = "Belum/Tidak Bekerja")]
-    #[sqlx(rename = "Belum/Tidak Bekerja")]
-    BelumTidakBekerja,
-    #[serde(rename = "Pelajar/Mahasiswa")]
-    #[sqlx(rename = "Pelajar/Mahasiswa")]
-    PelajarMahasiswa,
-    #[serde(rename = "PNS")]
-    #[sqlx(rename = "PNS")]
-    PNS,
-    #[serde(rename = "TNI/Polri")]
-    #[sqlx(rename = "TNI/Polri")]
-    TNIPolri,
-    #[serde(rename = "Karyawan Swasta")]
-    #[sqlx(rename = "Karyawan Swasta")]
-    KaryawanSwasta,
-    Wiraswasta,
-    #[serde(rename = "Petani/Nelayan")]
-    #[sqlx(rename = "Petani/Nelayan")]
-    PetaniNelayan,
-    Lainnya,
+// Case-insensitive deserializer for TingkatPendidikan
+impl<'de> Deserialize<'de> for TingkatPendidikan {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        let normalized = s.trim().to_lowercase();
+        match normalized.as_str() {
+            "tidak sekolah" => Ok(Self::TidakSekolah),
+            "sd tidak lulus" => Ok(Self::SdTidakLulus),
+            "sd atau sederajat" => Ok(Self::SdAtauSederajat),
+            "smp atau sederajat" => Ok(Self::SmpAtauSederajat),
+            "sma atau sederajat" => Ok(Self::SmaAtauSederajat),
+            "d1 atau sederajat" => Ok(Self::D1AtauSederajat),
+            "d2 atau sederajat" => Ok(Self::D2AtauSederajat),
+            "d3 atau sederajat" => Ok(Self::D3AtauSederajat),
+            "s1 atau sederajat" => Ok(Self::S1AtauSederajat),
+            "s2 atau sederajat" => Ok(Self::S2AtauSederajat),
+            "s3 atau sederajat" => Ok(Self::S3AtauSederajat),
+            _ => Err(serde::de::Error::custom(format!(
+                "invalid tingkat_pendidikan: '{}'",
+                s
+            ))),
+        }
+    }
 }
 
+
+// REKOMENDASI: Menggunakan ENUM untuk jenis_kelamin
+#[derive(Debug, Clone, PartialEq, Eq, Type, Deserialize)]
+#[sqlx(type_name = "jenis_kelamin_enum")] // Pastikan ENUM ini ada di DB
+pub enum JenisKelamin {
+    #[serde(rename = "Laki-laki")]
+    LakiLaki,
+    Perempuan,
+}
 // -----------------------------------------------------------------------------
 // DATA STRUCT FOR JSON
 // -----------------------------------------------------------------------------
 
+
+
+
+// --- Struct untuk JSON (Sudah Disederhanakan) ---
 #[derive(Debug, Deserialize)]
 struct KlienSeed {
     tipe: TipeKlien,
     nama: String,
     alamat: Option<String>,
     tempat_lahir: Option<String>,
-    tanggal_lahir: Option<NaiveDate>,
-    jenis_kelamin: Option<String>,
+    tanggal_lahir: Option<NaiveDate>, // Menggunakan ENUM
     agama: Option<String>,
-    pekerjaan: Option<JenisPekerjaan>,
     pendidikan_terakhir: Option<TingkatPendidikan>,
-    bapas_id: i32,
-    pk_id: i32,
+    pk_id: i32, // HANYA PK_ID YANG DIBUTUHKAN
+    // bapas_id dan kanwil_id dihapus dari sini
 }
 
-// -----------------------------------------------------------------------------
-// MAIN FUNCTION
-// -----------------------------------------------------------------------------
-
+// --- Fungsi Main (Sudah Disederhanakan) ---
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
     println!("--- Starting Klien Seeding from klien.json ---");
 
-    // 1. Connect to database
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let pool = PgPoolOptions::new().connect(&database_url).await?;
     println!("✓ Database connection established.");
 
-    // 2. Read JSON file
-    let file = File::open("../mockdata/klien.json")?;
+    let path = "../mockdata/klien.json";
+    let file = File::open(path)?;
     let reader = BufReader::new(file);
     let klien_list: Vec<KlienSeed> = serde_json::from_reader(reader)?;
-    println!("✓ Loaded {} klien records from klien.json.", klien_list.len());
+    println!("✓ Parsed {} klien from {}.", klien_list.len(), path);
 
-    // 3. Insert data
     println!("\nInserting klien data (this may take a moment)...");
     let mut total_inserted = 0;
-
     let mut tx = pool.begin().await?;
 
     for (index, k) in klien_list.iter().enumerate() {
+        // Query INSERT sekarang lebih sederhana.
+        // bapas_id dan kanwil_id akan diisi oleh TRIGGER di database.
         let result = sqlx::query(
             r#"
             INSERT INTO klien (
                 tipe, nama, alamat, tempat_lahir, tanggal_lahir,
-                jenis_kelamin, agama, pekerjaan, pendidikan_terakhir,
-                bapas_id, pk_id
+            agama, pendidikan_terakhir,
+                pk_id
             )
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-            ON CONFLICT DO NOTHING
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            ON CONFLICT DO NOTHING -- Pastikan ada UNIQUE constraint agar ini berfungsi
             "#,
         )
         .bind(&k.tipe)
@@ -127,12 +157,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .bind(&k.alamat)
         .bind(&k.tempat_lahir)
         .bind(&k.tanggal_lahir)
-        .bind(&k.jenis_kelamin)
         .bind(&k.agama)
-        .bind(&k.pekerjaan)
         .bind(&k.pendidikan_terakhir)
-        .bind(k.bapas_id)
-        .bind(k.pk_id)
+        .bind(k.pk_id) // Hanya bind pk_id
         .execute(&mut *tx)
         .await?;
 
@@ -144,9 +171,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     tx.commit().await?;
-
     println!("✓ Insertion complete. {} new klien added.", total_inserted);
     println!("\n--- Klien Seeding Complete! ---");
-
     Ok(())
 }
