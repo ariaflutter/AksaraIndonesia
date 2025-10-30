@@ -30,7 +30,7 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 -- Mendefinisikan semua ENUM di satu tempat untuk kejelasan.
 -- =============================================================================
 
-CREATE TYPE user_status_kepegawaian_enum AS ENUM ('Aktif', 'Pindah Jabatan', 'Pensiun', 'Lainya');
+CREATE TYPE user_status_kepegawaian_enum AS ENUM ('Aktif', 'Pindah Jabatan', 'Pensiun', 'Lainnya');
 CREATE TYPE user_status_aktif_enum AS ENUM ('Aktif', 'Deaktif');
 CREATE TYPE user_role_enum AS ENUM ('Pegawai', 'AdminBapas', 'AdminKanwil', 'SuperAdmin');
 CREATE TYPE tipe_klien_enum AS ENUM ('Dewasa', 'Anak');
@@ -560,14 +560,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trg_sync_klien_location
-    -- Jalankan SEBELUM data disimpan
-    BEFORE INSERT OR UPDATE ON klien
-    FOR EACH ROW
-    -- Jalankan hanya jika ini adalah INSERT baru, ATAU pk_id-nya diubah
-    WHEN (TG_OP = 'INSERT' OR NEW.pk_id IS DISTINCT FROM OLD.pk_id)
-    EXECUTE FUNCTION sync_klien_location_from_pk();
+CREATE OR REPLACE FUNCTION sync_klien_location_from_pk()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'UPDATE' AND NEW.pk_id IS NOT DISTINCT FROM OLD.pk_id THEN
+    RETURN NEW;  -- skip trigger if pk_id didn’t change
+  END IF;
 
+  -- your existing logic for syncing location here
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
 -- 4. Trigger untuk mengisi klien_id di proses_hukum_dewasa secara otomatis
 CREATE OR REPLACE FUNCTION sync_proses_hukum_dewasa_klien_id()

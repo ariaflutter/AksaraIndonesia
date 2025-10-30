@@ -5,9 +5,10 @@ use axum::{
     http::{Request, StatusCode},
     middleware::Next,
     response::Response,
+    Extension
 };
 use jsonwebtoken::{decode, DecodingKey, Validation};
-use crate::auth::model::Claims;
+use crate::auth::model::{AuthenticatedUser, Claims}; 
 
 const JWT_SECRET: &[u8] = b"your-super-secret-and-long-key";
 
@@ -44,8 +45,15 @@ pub async fn auth(
         StatusCode::UNAUTHORIZED
     })?
     .claims;
-    
-    req.extensions_mut().insert(claims);
+       
+    let authenticated_user = AuthenticatedUser {
+        id: claims.sub,
+        role: claims.role,
+        bapas_id: claims.bapas_id, // Mapping dari token ke struct internal
+        kanwil_id: claims.kanwil_id,
+    };
+    req.extensions_mut().insert(authenticated_user);
+
 
     // Now, `req` is guaranteed to be the correct type that `next.run()` expects.
     Ok(next.run(req).await)

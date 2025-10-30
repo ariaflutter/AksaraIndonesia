@@ -7,24 +7,39 @@ use axum::{
 };
 use bcrypt::{hash, DEFAULT_COST};
 use sqlx::PgPool;
-use crate::auth::model::Claims;
-use crate::types::UserRole;
-use super::model::{CreateUser, User, UpdateUser};
-// <-- Add this to your imports at the top
-
-
+// [FIX] Ganti Claims dengan AuthenticatedUser
+use crate::auth::model::AuthenticatedUser; 
+// [FIX] Ganti UserRole dengan UserRoleEnum
+use crate::types::UserRoleEnum; 
+use super::model::{CreateUser, UpdateUser, User};
 
 // --- READ ALL ---
 pub async fn get_all_users(
     Extension(pool): Extension<PgPool>,
 ) -> Result<Json<Vec<User>>, StatusCode> {
-    let users = sqlx::query_as::<_, User>("SELECT * FROM users ORDER BY nama")
-        .fetch_all(&pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to fetch users: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    // [FIX] Gunakan query_as! makro untuk keamanan tipe dan nama kolom yang benar
+    let users = sqlx::query_as!(
+        User,
+        r#"
+        SELECT 
+            id, nip_user, nama_user, gelar_depan_user, gelar_belakang_user,
+            pangkat_golongan_user, jabatan_user, bapas_id, kanwil_id,
+            status_kepegawaian_user AS "status_kepegawaian_user: _",
+            email_user, nomor_telepon_user,
+            status_aktif_user AS "status_aktif_user: _",
+            role_user AS "role_user: _",
+            password_hash, created_at, updated_at, created_by, updated_by, deleted_at
+        FROM users 
+        WHERE deleted_at IS NULL 
+        ORDER BY nama_user
+        "#
+    )
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to fetch users: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
     Ok(Json(users))
 }
 
@@ -33,34 +48,47 @@ pub async fn get_user_by_id(
     Extension(pool): Extension<PgPool>,
     Path(id): Path<i32>,
 ) -> Result<Json<User>, StatusCode> {
-    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
-        .bind(id)
-        .fetch_optional(&pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to fetch user by id: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?
-        .ok_or(StatusCode::NOT_FOUND)?;
+    let user = sqlx::query_as!(
+        User,
+        r#"
+        SELECT 
+            id, nip_user, nama_user, gelar_depan_user, gelar_belakang_user,
+            pangkat_golongan_user, jabatan_user, bapas_id, kanwil_id,
+            status_kepegawaian_user AS "status_kepegawaian_user: _",
+            email_user, nomor_telepon_user,
+            status_aktif_user AS "status_aktif_user: _",
+            role_user AS "role_user: _",
+            password_hash, created_at, updated_at, created_by, updated_by, deleted_at
+        FROM users 
+        WHERE id = $1 AND deleted_at IS NULL
+        "#,
+        id
+    )
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to fetch user by id: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?
+    .ok_or(StatusCode::NOT_FOUND)?;
     Ok(Json(user))
 }
 
 // --- CREATE ---
 pub async fn create_user(
     Extension(pool): Extension<PgPool>,
-    Extension(claims): Extension<Claims>,
+    // [FIX] Gunakan AuthenticatedUser
+    Extension(current_user): Extension<AuthenticatedUser>, 
     Json(payload): Json<CreateUser>,
 ) -> Result<Json<User>, StatusCode> {
-    // Authorization: Only SuperAdmin or AdminBapas can create users.
-    if claims.role != UserRole::SuperAdmin && claims.role != UserRole::AdminBapas {
+    // Note: Logika otorisasi ini nantinya akan dipindah ke middleware.
+    if current_user.role != UserRoleEnum::SuperAdmin && current_user.role != UserRoleEnum::AdminBapas {
         return Err(StatusCode::FORBIDDEN);
     }
-    // More specific rule: An AdminBapas can only create users for their own Unit Kerja.
-    if claims.role == UserRole::AdminBapas && payload.unit_kerja_id != claims.unit_kerja_id {
+    if current_user.role == UserRoleEnum::AdminBapas && payload.bapas_id != current_user.bapas_id {
         return Err(StatusCode::FORBIDDEN);
     }
 
-    // Hash the password before storing.
     let password_hash = hash(&payload.password, DEFAULT_COST).map_err(|_| {
         tracing::error!("Failed to hash password");
         StatusCode::INTERNAL_SERVER_ERROR
@@ -70,54 +98,70 @@ pub async fn create_user(
         User,
         r#"
         INSERT INTO users (
-            nip, nama, gelar_depan, gelar_belakang, pangkat_golongan, jabatan,
-            unit_kerja_id, status_kepegawaian, email, nomor_telepon,
-            status_aktif, role, password_hash
+            nip_user, nama_user, gelar_depan_user, gelar_belakang_user, pangkat_golongan_user,
+            jabatan_user, bapas_id, kanwil_id, status_kepegawaian_user, email_user,
+            nomor_telepon_user, status_aktif_user, role_user, password_hash, created_by, updated_by
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15)
         RETURNING
-            id, nip, nama, gelar_depan, gelar_belakang, pangkat_golongan, jabatan,
-            unit_kerja_id, kanwil_id,status_kepegawaian AS "status_kepegawaian: _", email, nomor_telepon,
-            status_aktif AS "status_aktif: _", role AS "role: _", password_hash
+            id, nip_user, nama_user, gelar_depan_user, gelar_belakang_user,
+            pangkat_golongan_user, jabatan_user, bapas_id, kanwil_id,
+            status_kepegawaian_user AS "status_kepegawaian_user: _",
+            email_user, nomor_telepon_user,
+            status_aktif_user AS "status_aktif_user: _",
+            role_user AS "role_user: _",
+            password_hash, created_at, updated_at, created_by, updated_by, deleted_at
         "#,
-        payload.nip,
-        payload.nama,
-        payload.gelar_depan,
-        payload.gelar_belakang,
-        payload.pangkat_golongan,
-        payload.jabatan,
-        payload.unit_kerja_id,
-        payload.status_kepegawaian as _,
-        payload.email,
-        payload.nomor_telepon,
-        payload.status_aktif as _,
-        payload.role as _,
-        password_hash
+        payload.nip_user,
+        payload.nama_user,
+        payload.gelar_depan_user,
+        payload.gelar_belakang_user,
+        payload.pangkat_golongan_user,
+        payload.jabatan_user,
+        payload.bapas_id,
+        payload.kanwil_id, // Biarkan DB trigger yang menanganinya jika bapas_id diisi
+        payload.status_kepegawaian_user as _,
+        payload.email_user,
+        payload.nomor_telepon_user,
+        payload.status_aktif_user as _,
+        payload.role_user as _,
+        password_hash,
+        current_user.id // [FIX] Mengisi created_by dan updated_by
     )
     .fetch_one(&pool)
     .await
     .map_err(|e| {
         tracing::error!("Failed to create user: {}", e);
+        // [IMPROVEMENT] Memberi feedback jika NIP sudah ada
+        if let Some(db_err) = e.as_database_error() {
+            if db_err.is_unique_violation() {
+                return StatusCode::CONFLICT; // NIP sudah terdaftar
+            }
+        }
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
     Ok(Json(new_user))
 }
 
-// --- DELETE ---
+// --- DELETE (SOFT DELETE) ---
 pub async fn delete_user(
     Extension(pool): Extension<PgPool>,
-    Extension(claims): Extension<Claims>,
+    Extension(current_user): Extension<AuthenticatedUser>,
     Path(id): Path<i32>,
 ) -> StatusCode {
-    // Authorization: Let's say only SuperAdmin can delete.
-    if claims.role != UserRole::SuperAdmin {
+    if current_user.role != UserRoleEnum::SuperAdmin {
         return StatusCode::FORBIDDEN;
     }
-
-    let result = sqlx::query!("DELETE FROM users WHERE id = $1", id)
-        .execute(&pool)
-        .await;
+    
+    // [FIX] Lakukan soft delete dengan mengisi `deleted_at` dan `updated_by`
+    let result = sqlx::query!(
+        "UPDATE users SET deleted_at = NOW(), updated_by = $1 WHERE id = $2",
+        current_user.id,
+        id
+    )
+    .execute(&pool)
+    .await;
 
     match result {
         Ok(query_result) => {
@@ -128,113 +172,97 @@ pub async fn delete_user(
             }
         }
         Err(e) => {
-            tracing::error!("Failed to delete user: {}", e);
+            tracing::error!("Failed to soft delete user: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         }
     }
 }
 
-// Note: The UPDATE handler is more complex due to optional fields
-// and conditional password hashing. We will add it after these are working.
-
-// in src/users/handlers.rs
-// ... (at the bottom of the file)
-
 
 // --- UPDATE ---
 pub async fn update_user(
     Extension(pool): Extension<PgPool>,
-    Extension(claims): Extension<Claims>,
+    Extension(current_user): Extension<AuthenticatedUser>,
     Path(id): Path<i32>,
     Json(payload): Json<UpdateUser>,
 ) -> Result<Json<User>, StatusCode> {
     
-    // Authorization: A SuperAdmin can update anyone. An AdminBapas can only update users
-    // in their own Unit Kerja. A Pegawai can only update their own profile.
-    
-    // 1. Fetch the user being updated to check their current unit_kerja_id
-    let user_to_update = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
-        .bind(id)
+    let user_to_update = sqlx::query_as!(User, r#"SELECT id, nip_user, nama_user, gelar_depan_user, gelar_belakang_user, pangkat_golongan_user, jabatan_user, bapas_id, kanwil_id, status_kepegawaian_user AS "status_kepegawaian_user: _", email_user, nomor_telepon_user, status_aktif_user AS "status_aktif_user: _", role_user AS "role_user: _", password_hash, created_at, updated_at, created_by, updated_by, deleted_at FROM users WHERE id = $1 AND deleted_at IS NULL"#, id)
         .fetch_optional(&pool)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    // 2. Perform Authorization Checks
-    match claims.role {
-        UserRole::SuperAdmin => { /* SuperAdmin can do anything, proceed */ }
-        UserRole::AdminKanwil => {
-            if user_to_update.kanwil_id != claims.kanwil_id {
+    // Note: Logika otorisasi ini nantinya akan dipindah ke middleware.
+    match current_user.role {
+        UserRoleEnum::SuperAdmin => {}
+        UserRoleEnum::AdminKanwil => {
+            if user_to_update.kanwil_id != current_user.kanwil_id {
                 return Err(StatusCode::FORBIDDEN);
             }
         },
-
-        UserRole::AdminBapas => {
-            // AdminBapas can only update users in their own unit.
-            if user_to_update.unit_kerja_id != claims.unit_kerja_id {
+        UserRoleEnum::AdminBapas => {
+            if user_to_update.bapas_id != current_user.bapas_id {
                 return Err(StatusCode::FORBIDDEN);
             }
         }
-        UserRole::Pegawai => {
-            // A Pegawai can only update their own record (id must match).
-            if user_to_update.id != claims.sub {
+        UserRoleEnum::Pegawai => {
+            if user_to_update.id != current_user.id {
                 return Err(StatusCode::FORBIDDEN);
             }
         }
     }
 
-    // 3. Handle password update
-    // If a new password is provided in the payload, hash it.
-    // Otherwise, keep the existing password_hash from the database.
     let password_hash = match payload.password {
-        Some(new_password) => hash(&new_password, DEFAULT_COST).map_err(|_| {
-            tracing::error!("Failed to hash new password for user {}", id);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?,
+        Some(new_password) => hash(&new_password, DEFAULT_COST)
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
         None => user_to_update.password_hash,
     };
     
-    // 4. Perform the database update
-    // Use COALESCE($n, existing_column) to only update fields that are provided
-    // in the payload. If a field in the payload is None, the existing value is kept.
     let updated_user = sqlx::query_as!(
         User,
         r#"
         UPDATE users SET
-            nip = COALESCE($1, nip),
-            nama = COALESCE($2, nama),
-            gelar_depan = COALESCE($3, gelar_depan),
-            gelar_belakang = COALESCE($4, gelar_belakang),
-            pangkat_golongan = COALESCE($5, pangkat_golongan),
-            jabatan = COALESCE($6, jabatan),
-            unit_kerja_id = COALESCE($7, unit_kerja_id),
+            nip_user = COALESCE($1, nip_user),
+            nama_user = COALESCE($2, nama_user),
+            gelar_depan_user = COALESCE($3, gelar_depan_user),
+            gelar_belakang_user = COALESCE($4, gelar_belakang_user),
+            pangkat_golongan_user = COALESCE($5, pangkat_golongan_user),
+            jabatan_user = COALESCE($6, jabatan_user),
+            bapas_id = COALESCE($7, bapas_id),
             kanwil_id = COALESCE($8, kanwil_id),
-            status_kepegawaian = COALESCE($9, status_kepegawaian),
-            email = COALESCE($10, email),
-            nomor_telepon = COALESCE($11, nomor_telepon),
-            status_aktif = COALESCE($12, status_aktif),
-            role = COALESCE($13, role),
-            password_hash = $14
-        WHERE id = $15
+            status_kepegawaian_user = COALESCE($9, status_kepegawaian_user),
+            email_user = COALESCE($10, email_user),
+            nomor_telepon_user = COALESCE($11, nomor_telepon_user),
+            status_aktif_user = COALESCE($12, status_aktif_user),
+            role_user = COALESCE($13, role_user),
+            password_hash = $14,
+            updated_by = $15
+        WHERE id = $16
         RETURNING
-            id, nip, nama, gelar_depan, gelar_belakang, pangkat_golongan, jabatan,
-            unit_kerja_id, kanwil_id,status_kepegawaian AS "status_kepegawaian: _", email, nomor_telepon,
-            status_aktif AS "status_aktif: _", role AS "role: _", password_hash
+            id, nip_user, nama_user, gelar_depan_user, gelar_belakang_user,
+            pangkat_golongan_user, jabatan_user, bapas_id, kanwil_id,
+            status_kepegawaian_user AS "status_kepegawaian_user: _",
+            email_user, nomor_telepon_user,
+            status_aktif_user AS "status_aktif_user: _",
+            role_user AS "role_user: _",
+            password_hash, created_at, updated_at, created_by, updated_by, deleted_at
         "#,
-        payload.nip,
-        payload.nama,
-        payload.gelar_depan,
-        payload.gelar_belakang,
-        payload.pangkat_golongan,
-        payload.jabatan,
-        payload.unit_kerja_id,
+        payload.nip_user,
+        payload.nama_user,
+        payload.gelar_depan_user,
+        payload.gelar_belakang_user,
+        payload.pangkat_golongan_user,
+        payload.jabatan_user,
+        payload.bapas_id,
         payload.kanwil_id,
-        payload.status_kepegawaian as _,
-        payload.email,
-        payload.nomor_telepon,
-        payload.status_aktif as _,
-        payload.role as _,
+        payload.status_kepegawaian_user as _,
+        payload.email_user,
+        payload.nomor_telepon_user,
+        payload.status_aktif_user as _,
+        payload.role_user as _,
         password_hash,
+        current_user.id, // [FIX] Mengisi updated_by
         id
     )
     .fetch_one(&pool)

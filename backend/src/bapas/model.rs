@@ -1,27 +1,43 @@
-// src/bapas/model.rs
-use serde::{Deserialize}; // <-- Make sure Deserialize is imported
-// This struct defines the data structure for a Bapas office.
-// It maps directly to the columns in our 'bapas' database table.
-#[derive(Debug, serde::Serialize, sqlx::FromRow)]
+// File baru: src/bapas/model.rs
+
+use serde::{Deserialize, Serialize};
+use sqlx::FromRow;
+use chrono::{DateTime, Utc};
+
+// Merepresentasikan satu baris dari tabel 'bapas'
+#[derive(Debug, Serialize, FromRow)]
 pub struct Bapas {
     pub id: i32,
+    pub kanwil_id: i32,
     pub nama_bapas: String,
     pub kota_bapas: String,
     pub alamat_bapas: Option<String>,
     pub nomor_telepon_bapas: Option<String>,
     pub email_bapas: Option<String>,
-    pub kanwil_id :i32
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
-// --- ADD THIS NEW STRUCT ---
-// This represents the data the user will send TO our API
-// when creating a new Bapas office.
+// Data yang dibutuhkan untuk membuat Bapas baru
 #[derive(Debug, Deserialize)]
 pub struct CreateBapas {
+    pub kanwil_id: i32,
     pub nama_bapas: String,
     pub kota_bapas: String,
     pub alamat_bapas: Option<String>,
     pub nomor_telepon_bapas: Option<String>,
     pub email_bapas: Option<String>,
-    pub kanwil_id :i32,
+}
+
+// Data yang dibutuhkan untuk mengupdate Bapas
+#[derive(Debug, Deserialize)]
+pub struct UpdateBapas {
+    pub kanwil_id: Option<i32>,
+    pub nama_bapas: Option<String>,
+    pub kota_bapas: Option<String>,
+    pub alamat_bapas: Option<String>,
+    pub nomor_telepon_bapas: Option<String>,
+    pub email_bapas: Option<String>,
 }

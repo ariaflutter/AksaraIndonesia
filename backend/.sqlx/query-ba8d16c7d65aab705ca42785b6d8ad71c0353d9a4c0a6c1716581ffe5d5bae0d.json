@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO bapas (nama_bapas, kota_bapas, alamat_bapas, nomor_telepon_bapas, email_bapas, kanwil_id)\n            VALUES ($1, $2, $3, $4, $5, $6)\n            ON CONFLICT (nama_bapas) DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Varchar",
+        "Text",
+        "Varchar",
+        "Varchar",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ba8d16c7d65aab705ca42785b6d8ad71c0353d9a4c0a6c1716581ffe5d5bae0d"
+}

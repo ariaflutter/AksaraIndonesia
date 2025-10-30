@@ -1,27 +1,34 @@
-// src/auth/model.rs
-
 use serde::{Deserialize, Serialize};
-use crate::types::UserRole; 
-// This struct represents the JSON payload the user will send when logging in.
+use crate::types::UserRoleEnum; 
+
+// [FIX] Sesuaikan field agar konsisten dengan database dan frontend
 #[derive(Debug, Deserialize)]
 pub struct LoginRequest {
-    pub nip: String,
+    pub nip_user: String, // Menggunakan nama yang sama dengan kolom DB
     pub password: String,
 }
 
-// This struct represents the JSON payload we will send back on successful login.
+// Struct ini sudah OK
 #[derive(Debug, Serialize)]
 pub struct LoginResponse {
     pub token: String,
 }
 
-// These are the "claims" we will encode into the JSON Web Token.
-// It contains the user's identity and permissions.
+// Struct ini sudah OK
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Claims {
-    pub sub: i32, // Subject (the user's ID)
-    pub role: UserRole,
-    pub unit_kerja_id: Option<i32>,
-    pub exp: usize, // Expiration time
+    pub sub: i32, 
+    pub role: UserRoleEnum,
+    pub bapas_id: Option<i32>,
+    pub kanwil_id: Option<i32>,
+    pub exp: usize, 
+}
+
+// Struct ini sudah OK
+#[derive(Debug, Clone)]
+pub struct AuthenticatedUser {
+    pub id: i32,
+    pub role: UserRoleEnum,
+    pub bapas_id: Option<i32>,
     pub kanwil_id: Option<i32>,
 }

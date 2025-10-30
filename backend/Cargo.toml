@@ -46,8 +46,3 @@ tower-http = { version = "0.5.0", features = ["cors"] }
 ts-rs = "8.0"
 
 
-
-[build-dependencies]
-dotenvy = "0.15"
-postgres = { version = "0.19", features = ["with-chrono-0_4"] }
-heck = "0.5" # For converting string cases (snake_case to PascalCase)

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO kanwil (nama_kanwil, alamat_kanwil, nomor_telepon_kanwil)\n            VALUES ($1, $2, $3)\n            ON CONFLICT (nama_kanwil) DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Text",
+        "Varchar"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7f31d177ffdde77b93eaa4aa37baedc9071d124c7497bdf91e5fc7b9ab3e5720"
+}

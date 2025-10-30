@@ -1,166 +1,213 @@
-// src/bapas/handlers.rs
+// File baru: src/bapas/handlers.rs
 
-use axum::{extract::{Extension,Path}, http::StatusCode, Json};
+use axum::{
+    extract::{Extension, Path},
+    http::StatusCode,
+    Json,
+};
 use sqlx::PgPool;
-use super::model::{Bapas,CreateBapas}; // Import the Bapas model from our sibling module.
-use crate::types::UserRole; // <-- Import UserRole for authorization
-use crate::auth::model::Claims; // <-- Import Claims to get the logged-in user
+use crate::auth::model::AuthenticatedUser;
+use crate::types::UserRoleEnum;
+use super::model::{Bapas, CreateBapas, UpdateBapas};
 
-/// API handler to fetch a list of all Bapas offices.
-pub async fn get_all_bapas(
-    Extension(pool): Extension<PgPool>,
-) -> Result<Json<Vec<Bapas>>, StatusCode> {
-    
-    let query = "SELECT id, nama_bapas, kota, alamat, nomor_telepon_bapas, email, kanwil FROM bapas ORDER BY nama_bapas";
-
-    let bapas_list = sqlx::query_as::<_, Bapas>(query)
-        .fetch_all(&pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to fetch bapas data: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-
-    Ok(Json(bapas_list))
-}
-
+// --- CREATE ---
 pub async fn create_bapas(
     Extension(pool): Extension<PgPool>,
-    Extension(claims): Extension<Claims>, // Get the claims of the logged-in user
+    Extension(user): Extension<AuthenticatedUser>,
     Json(payload): Json<CreateBapas>,
 ) -> Result<Json<Bapas>, StatusCode> {
-
-    // --- 1. Authorization ---
-    // Check if the user's role is authorized to perform this action.
-    if claims.role != UserRole::SuperAdmin && claims.role != UserRole::AdminBapas {
-        tracing::warn!("Unauthorized attempt to create Bapas by user {}", claims.sub);
-        return Err(StatusCode::FORBIDDEN); // 403 Forbidden
+    // Otorisasi: SuperAdmin atau AdminKanwil yang sesuai
+    match user.role {
+        UserRoleEnum::SuperAdmin => {} // Boleh
+        UserRoleEnum::AdminKanwil => {
+            // AdminKanwil hanya boleh membuat Bapas di dalam Kanwilnya.
+            if user.kanwil_id != Some(payload.kanwil_id) {
+                return Err(StatusCode::FORBIDDEN);
+            }
+        }
+        _ => return Err(StatusCode::FORBIDDEN),
     }
 
-    // --- 2. Validation (Simple Example) ---
-    // In a real app, you'd add more validation (e.g., is the email valid?).
-    if payload.nama_bapas.is_empty() {
-        return Err(StatusCode::BAD_REQUEST); // 400 Bad Request
-    }
-
-    // --- 3. Database Insertion ---
-    // The `RETURNING *` part is a PostgreSQL feature that returns the entire
-    // newly created row, which we can then send back to the user.
-    let new_bapas = sqlx::query_as::<_, Bapas>(
-        "INSERT INTO bapas (nama_bapas, kota_bapas, alamat_bapas, nomor_telepon_bapas, email_bapas, kanwil_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *"
+    let new_bapas = sqlx::query_as!(
+        Bapas,
+        r#"
+        INSERT INTO bapas (kanwil_id, nama_bapas, kota_bapas, alamat_bapas, nomor_telepon_bapas, email_bapas)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING id, kanwil_id, nama_bapas, kota_bapas, alamat_bapas, nomor_telepon_bapas, email_bapas, created_at, updated_at, deleted_at
+        "#,
+        payload.kanwil_id,
+        payload.nama_bapas,
+        payload.kota_bapas,
+        payload.alamat_bapas,
+        payload.nomor_telepon_bapas,
+        payload.email_bapas
     )
-    .bind(&payload.nama_bapas)
-    .bind(&payload.kota_bapas)
-    .bind(&payload.alamat_bapas)
-    .bind(&payload.nomor_telepon_bapas)
-    .bind(&payload.email_bapas)
-    .bind(&payload.kanwil_id)
-    .fetch_one(&pool) // Use `fetch_one` because RETURNING * will always return exactly one row.
+    .fetch_one(&pool)
     .await
     .map_err(|e| {
+        if e.as_database_error().map_or(false, |db_err| db_err.is_unique_violation()) {
+            return StatusCode::CONFLICT;
+        }
         tracing::error!("Failed to create bapas: {}", e);
-        // You could check for specific DB errors here, like a UNIQUE constraint violation.
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    // --- 4. Return the new record ---
     Ok(Json(new_bapas))
 }
 
-pub async fn get_bapas_by_id(
+// --- READ ALL ---
+// Handler ini akan menampilkan semua Bapas ke SuperAdmin,
+// tapi hanya Bapas yang relevan untuk AdminKanwil.
+pub async fn get_all_bapas(
     Extension(pool): Extension<PgPool>,
-    Path(id): Path<i32>, // Axum extracts the ID from the URL path into this variable.
-) -> Result<Json<Bapas>, StatusCode> {
+    Extension(user): Extension<AuthenticatedUser>,
+) -> Result<Json<Vec<Bapas>>, StatusCode> {
+    let bapas_list = match user.role {
+        UserRoleEnum::SuperAdmin => {
+            sqlx::query_as!(Bapas, "SELECT * FROM bapas WHERE deleted_at IS NULL ORDER BY nama_bapas")
+                .fetch_all(&pool)
+                .await
+        }
+        UserRoleEnum::AdminKanwil => {
+            sqlx::query_as!(
+                Bapas, 
+                "SELECT * FROM bapas WHERE kanwil_id = $1 AND deleted_at IS NULL ORDER BY nama_bapas",
+                user.kanwil_id
+            )
+            .fetch_all(&pool)
+            .await
+        }
+        // AdminBapas dan Pegawai mungkin perlu melihat daftar Bapas, kita izinkan (read-only)
+        UserRoleEnum::AdminBapas | UserRoleEnum::Pegawai => {
+             sqlx::query_as!(Bapas, "SELECT * FROM bapas WHERE deleted_at IS NULL ORDER BY nama_bapas")
+                .fetch_all(&pool)
+                .await
+        }
+    };
     
-    let query = "SELECT * FROM bapas WHERE id = $1";
-
-    // Use `fetch_optional` which returns an Option<Bapas>.
-    // This correctly handles the case where no Bapas with the given ID is found.
-    let bapas = sqlx::query_as::<_, Bapas>(query)
-        .bind(id)
-        .fetch_optional(&pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to fetch bapas by id: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?
-        .ok_or(StatusCode::NOT_FOUND)?; // If the Option is None, map it to a 404 Not Found.
-
-    Ok(Json(bapas))
+    match bapas_list {
+        Ok(list) => Ok(Json(list)),
+        Err(e) => {
+            tracing::error!("Failed to fetch bapas list: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
 
+
+// --- READ ONE ---
+pub async fn get_bapas_by_id(
+    Extension(pool): Extension<PgPool>,
+    Extension(user): Extension<AuthenticatedUser>,
+    Path(id): Path<i32>,
+) -> Result<Json<Bapas>, StatusCode> {
+    let bapas = sqlx::query_as!(
+        Bapas,
+        "SELECT * FROM bapas WHERE id = $1 AND deleted_at IS NULL",
+        id
+    )
+    .fetch_optional(&pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .ok_or(StatusCode::NOT_FOUND)?;
+
+    // Otorisasi: Pastikan AdminKanwil hanya mengakses Bapas di wilayahnya.
+    match user.role {
+        UserRoleEnum::SuperAdmin => Ok(Json(bapas)),
+        UserRoleEnum::AdminKanwil => {
+            if user.kanwil_id == Some(bapas.kanwil_id) {
+                Ok(Json(bapas))
+            } else {
+                Err(StatusCode::FORBIDDEN)
+            }
+        }
+        _ => Ok(Json(bapas)), // Izinkan read untuk role lain
+    }
+}
+
+// --- UPDATE ---
 pub async fn update_bapas(
     Extension(pool): Extension<PgPool>,
-    Extension(claims): Extension<Claims>,
+    Extension(user): Extension<AuthenticatedUser>,
     Path(id): Path<i32>,
-    Json(payload): Json<CreateBapas>, // We can reuse the CreateBapas struct for updates
+    Json(payload): Json<UpdateBapas>,
 ) -> Result<Json<Bapas>, StatusCode> {
-    
-    // Authorization: Only SuperAdmin and AdminBapas can update.
-    if claims.role != UserRole::SuperAdmin && claims.role != UserRole::AdminBapas {
-        return Err(StatusCode::FORBIDDEN);
-    }
-    
-    // In a real app, you might also add logic here for an AdminBapas:
-    // "An AdminBapas can only update the Bapas that they belong to."
-    // if claims.role == UserRole::AdminBapas && claims.unit_kerja_id != Some(id) {
-    //     return Err(StatusCode::FORBIDDEN);
-    // }
-
-    let query = "UPDATE bapas SET nama_bapas = $1, kota_bapas = $2, alamat_bapas = $3, nomor_telepon_bapas = $4, email_bapas = $5, kanwil_id = $6 WHERE id = $7 RETURNING *";
-
-    let updated_bapas = sqlx::query_as::<_, Bapas>(query)
-        .bind(&payload.nama_bapas)
-        .bind(&payload.kota_bapas)
-        .bind(&payload.alamat_bapas)
-        .bind(&payload.nomor_telepon_bapas)
-        .bind(&payload.email_bapas)
-        .bind(&payload.kanwil_id) // You have this as an Option, so bind it.
-        .bind(id)
-        .fetch_optional(&pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to update bapas: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?
+    // Pertama, fetch Bapas yang akan diupdate untuk memeriksa kepemilikan
+    let bapas_to_update = sqlx::query_as!(Bapas, "SELECT * FROM bapas WHERE id = $1", id)
+        .fetch_optional(&pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .ok_or(StatusCode::NOT_FOUND)?;
+
+    match user.role {
+        UserRoleEnum::SuperAdmin => {},
+        UserRoleEnum::AdminKanwil => {
+            if user.kanwil_id != Some(bapas_to_update.kanwil_id) {
+                return Err(StatusCode::FORBIDDEN);
+            }
+        }
+        _ => return Err(StatusCode::FORBIDDEN),
+    }
+
+    let updated_bapas = sqlx::query_as!(
+        Bapas,
+        r#"
+        UPDATE bapas
+        SET 
+            kanwil_id = COALESCE($1, kanwil_id),
+            nama_bapas = COALESCE($2, nama_bapas),
+            kota_bapas = COALESCE($3, kota_bapas),
+            alamat_bapas = COALESCE($4, alamat_bapas),
+            nomor_telepon_bapas = COALESCE($5, nomor_telepon_bapas),
+            email_bapas = COALESCE($6, email_bapas)
+        WHERE id = $7 AND deleted_at IS NULL
+        RETURNING id, kanwil_id, nama_bapas, kota_bapas, alamat_bapas, nomor_telepon_bapas, email_bapas, created_at, updated_at, deleted_at
+        "#,
+        payload.kanwil_id,
+        payload.nama_bapas,
+        payload.kota_bapas,
+        payload.alamat_bapas,
+        payload.nomor_telepon_bapas,
+        payload.email_bapas,
+        id
+    )
+    .fetch_optional(&pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .ok_or(StatusCode::NOT_FOUND)?;
 
     Ok(Json(updated_bapas))
 }
 
+// --- DELETE (SOFT) ---
 pub async fn delete_bapas(
     Extension(pool): Extension<PgPool>,
-    Extension(claims): Extension<Claims>,
+    Extension(user): Extension<AuthenticatedUser>,
     Path(id): Path<i32>,
 ) -> StatusCode {
+     // Fetch dulu untuk otorisasi
+    let bapas_to_delete = match sqlx::query_as!(Bapas, "SELECT * FROM bapas WHERE id = $1", id)
+        .fetch_optional(&pool).await {
+            Ok(Some(bapas)) => bapas,
+            Ok(None) => return StatusCode::NOT_FOUND,
+            Err(_) => return StatusCode::INTERNAL_SERVER_ERROR
+        };
 
-    // Authorization: For deletion, let's say ONLY a SuperAdmin can do it.
-    if claims.role != UserRole::SuperAdmin {
-        return StatusCode::FORBIDDEN;
+    match user.role {
+        UserRoleEnum::SuperAdmin => {},
+        UserRoleEnum::AdminKanwil => {
+            if user.kanwil_id != Some(bapas_to_delete.kanwil_id) {
+                return StatusCode::FORBIDDEN;
+            }
+        }
+        _ => return StatusCode::FORBIDDEN,
     }
 
-    let query = "DELETE FROM bapas WHERE id = $1";
-
-    // Use `execute` as we don't need to return the deleted row.
-    // It returns a `Result<PgQueryResult, _>`
-    let result = sqlx::query(query)
-        .bind(id)
+    let result = sqlx::query!("UPDATE bapas SET deleted_at = NOW() WHERE id = $1", id)
         .execute(&pool)
         .await;
 
     match result {
-        Ok(query_result) => {
-            // If `rows_affected` is 0, it means no Bapas with that ID was found.
-            if query_result.rows_affected() == 0 {
-                StatusCode::NOT_FOUND
-            } else {
-                // Return 204 No Content on successful deletion.
-                StatusCode::NO_CONTENT
-            }
-        }
-        Err(e) => {
-            tracing::error!("Failed to delete bapas: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        }
+        Ok(res) if res.rows_affected() > 0 => StatusCode::NO_CONTENT,
+        Ok(_) => StatusCode::NOT_FOUND,
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }
 }

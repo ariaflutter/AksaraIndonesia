@@ -1,345 +1,301 @@
-// src/klien/handlers_core.rs
+// File baru: src/klien/handlers_core.rs
 
-use crate::auth::model::Claims;
-use crate::klien::model_core::{CreateKlien, Klien, UpdateKlien};
-use crate::utils::Pagination;
 use axum::{
     extract::{Extension, Path, Query},
     http::StatusCode,
     Json,
 };
-use sqlx::{PgPool, Postgres};
+use sqlx::PgPool;
+use crate::auth::model::AuthenticatedUser;
+use crate::types::UserRoleEnum;
+use super::model_core::{CreateKlien, Klien, UpdateKlien};
+use serde::Deserialize;
 
-// --- Authorization Helper ---
-// This struct and its methods contain all our security rules for accessing a Klien.
-struct AuthContext<'a> {
-    pool: &'a PgPool,
-    klien: &'a Klien,
-    claims: &'a Claims,
+#[derive(Deserialize)]
+pub struct GetAllKlienParams {
+    pub pk_id: Option<i32>,
+    pub bapas_id: Option<i32>,
+    pub kanwil_id: Option<i32>,
 }
 
-impl<'a> AuthContext<'a> {
-    fn new(pool: &'a PgPool, klien: &'a Klien, claims: &'a Claims) -> Self {
-        Self { pool, klien, claims }
-    }
-
-    // Inside the `is_authorized` method
-async fn is_authorized(&self) -> Result<bool, StatusCode> {
-    match self.claims.role {
-        crate::types::UserRole::SuperAdmin => Ok(true),
-        crate::types::UserRole::AdminKanwil => {
-            let admin_kanwil_id = match self.claims.kanwil_id {
-                Some(id) => id,
-                None => return Ok(false), // AdminKanwil with no Kanwil cannot see anything.
-            };
-
-            // FIX 1: Combine the query and the final return into one logical expression
-            let bapas_kanwil_id: Option<i32> = sqlx::query_scalar!(
-                "SELECT kanwil_id FROM bapas WHERE id = $1",
-                self.klien.bapas_id
-            )
-            .fetch_optional(self.pool)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-            Ok(bapas_kanwil_id == Some(admin_kanwil_id))
-        }
-        crate::types::UserRole::AdminBapas => {
-            // A slightly safer way to write this
-            if let Some(user_bapas_id) = self.claims.unit_kerja_id {
-                Ok(self.klien.bapas_id == user_bapas_id)
-            } else {
-                Ok(false)
-            }
-        }
-        crate::types::UserRole::Pegawai => Ok(self.klien.pk_id == self.claims.sub),
-    }
-}
-}
-
-pub async fn create_klien(
-    Extension(pool): Extension<PgPool>,
-    Extension(claims): Extension<Claims>,
-    Json(payload): Json<CreateKlien>,
-) -> Result<Json<Klien>, StatusCode> {
-    
-    let created_by_id = claims.sub;
-
-    // --- REVISED: AUTHORIZATION AND DATA SCOPING LOGIC ---
-    let target_bapas_id: i32;
-    let target_pk_id: i32;
-    let target_kanwil_id: i32;
-
-    match claims.role {
-        crate::types::UserRole::SuperAdmin => {
-            target_bapas_id = payload.bapas_id.ok_or(StatusCode::BAD_REQUEST)?;
-            target_pk_id = payload.pk_id.ok_or(StatusCode::BAD_REQUEST)?;
-        }
-        // FIX 2: Add the correct logic for AdminKanwil
-        crate::types::UserRole::AdminKanwil => {
-            // AdminKanwil must provide bapas_id and pk_id.
-            let bapas_id_from_payload = payload.bapas_id.ok_or(StatusCode::BAD_REQUEST)?;
-            target_pk_id = payload.pk_id.ok_or(StatusCode::BAD_REQUEST)?;
-
-            // SECURITY CHECK: Verify the provided bapas_id belongs to the admin's kanwil.
-            let admin_kanwil_id = claims.kanwil_id.ok_or(StatusCode::FORBIDDEN)?;
-            let bapas_kanwil_id: Option<i32> = sqlx::query_scalar!(
-                "SELECT kanwil_id FROM bapas WHERE id = $1",
-                bapas_id_from_payload
-            )
-            .fetch_optional(&pool)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-            if bapas_kanwil_id == Some(admin_kanwil_id) {
-                // The check passed. We can use the bapas_id from the payload.
-                target_bapas_id = bapas_id_from_payload;
-            } else {
-                // The provided Bapas is not in the admin's Kanwil.
-                return Err(StatusCode::FORBIDDEN);
-            }
-        }
-        crate::types::UserRole::AdminBapas => {
-            target_bapas_id = claims.unit_kerja_id.ok_or(StatusCode::FORBIDDEN)?;
-            target_pk_id = payload.pk_id.ok_or(StatusCode::BAD_REQUEST)?;
-        }
-        crate::types::UserRole::Pegawai => {
-            target_bapas_id = claims.unit_kerja_id.ok_or(StatusCode::FORBIDDEN)?;
-            target_pk_id = claims.sub;
-        }
-    }
-    // ---------------------------------------------------
-
-    // Now, we proceed with the insertion, but we use our verified `target_bapas_id`.
-    let result = sqlx::query_as(
-        r#"
-        INSERT INTO klien (
-            tipe, nama, alamat, tempat_lahir, tanggal_lahir, jenis_kelamin, agama,
-            pekerjaan, pendidikan_terakhir, bapas_id, pk_id, created_by, updated_by
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-        RETURNING *
-        "#,
-    )
-    .bind(&payload.tipe)
-    .bind(&payload.nama)
-    .bind(&payload.alamat)
-    .bind(&payload.tempat_lahir)
-    .bind(payload.tanggal_lahir)
-    .bind(&payload.jenis_kelamin)
-    .bind(&payload.agama)
-    .bind(&payload.pekerjaan)
-    .bind(payload.pendidikan_terakhir)
-    .bind(target_bapas_id) // <-- USE THE VERIFIED ID, NOT THE PAYLOAD ID
-    .bind(target_pk_id)
-    .bind(created_by_id)
-    .bind(created_by_id)
-    .fetch_one(&pool)
-    .await;
-
-    match result {
-        Ok(new_klien) => Ok(Json(new_klien)),
-        Err(e) => {
-            tracing::error!("Failed to create klien: {}", e);
-            // Check for specific foreign key violations, e.g., if pk_id or bapas_id doesn't exist.
-            if let Some(db_err) = e.as_database_error() {
-                if db_err.is_foreign_key_violation() {
-                    return Err(StatusCode::BAD_REQUEST); // 400 Bad Request
-                }
-            }
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
-}
-
-
-// --- READ ALL (with Pagination) ---
+// --- READ ALL (dengan filter dan otorisasi) ---
 pub async fn get_all_klien(
     Extension(pool): Extension<PgPool>,
-    Extension(claims): Extension<Claims>, // <-- We now need the user's claims
-    pagination: Query<Pagination>,
+    Extension(user): Extension<AuthenticatedUser>,
+    Query(params): Query<GetAllKlienParams>,
 ) -> Result<Json<Vec<Klien>>, StatusCode> {
     
-    let offset = (pagination.page - 1) * pagination.limit;
-
-    // --- NEW: DYNAMIC QUERY BUILDING BASED ON ROLE ---
-
-    // Start with the base query.
-      let mut query_builder: sqlx::QueryBuilder<Postgres> = sqlx::QueryBuilder::new(
+    let mut query_builder = sqlx::QueryBuilder::new(
         r#"
-        SELECT
-            id,
-            tipe,
-            nama,
-            alamat,
-            tempat_lahir,
-            tanggal_lahir,
-            jenis_kelamin,
-            agama,
-            pekerjaan,
-            pendidikan_terakhir,
-            bapas_id,
-            kanwil_id,
-            pk_id,
-            created_at,
-            updated_at,
-            created_by,
-            updated_by
-        FROM klien
+        SELECT id, tipe_klien, nama_klien, alamat_klien, tempat_lahir_klien, 
+        tanggal_lahir_klien, jenis_kelamin_klien, agama_klien, pekerjaan_klien, 
+        pendidikan_terakhir_klien, bapas_id, pk_id, kanwil_id, online_akses_klien, 
+        pengulangan_klien, kewarganegaraan_klien, negara_asal_klien, suku_klien, 
+        keterangan_klien, catatan_klien, created_at, updated_at, created_by, 
+        updated_by, deleted_at
+        FROM klien WHERE deleted_at IS NULL
         "#
     );
-    // Dynamically add a WHERE clause based on the user's role.
-    match claims.role {
-        crate::types::UserRole::SuperAdmin => {
-            // SuperAdmin sees everyone. No WHERE clause is added.
-        }
 
-        crate::types::UserRole::AdminKanwil => {
-            // AdminKanwil sees all clients within their kanwil_id.
-            // The filter is applied on the JOINED bapas table.
-            if let Some(kanwil_id) = claims.kanwil_id {
-                query_builder.push(" WHERE b.kanwil_id = ");
-                query_builder.push_bind(kanwil_id);
-            } else {
-                return Ok(Json(Vec::new())); // Security: return empty if misconfigured
+    // Terapkan filter berdasarkan role user untuk keamanan
+    match user.role {
+        UserRoleEnum::SuperAdmin => {
+            // SuperAdmin bisa filter berdasarkan kanwil atau bapas apa pun
+            if let Some(kanwil_id) = params.kanwil_id {
+                query_builder.push(" AND kanwil_id = ").push_bind(kanwil_id);
             }
-        }
-        crate::types::UserRole::AdminBapas => {
-            // AdminBapas sees all clients within their unit_kerja_id.
-            if let Some(unit_kerja_id) = claims.unit_kerja_id {
-                query_builder.push(" WHERE bapas_id = ");
-                query_builder.push_bind(unit_kerja_id);
-            } else {
-                // This AdminBapas is not associated with any Bapas, which is an error state.
-                // Return an empty list for security.
-                return Ok(Json(Vec::new()));
+            if let Some(bapas_id) = params.bapas_id {
+                query_builder.push(" AND bapas_id = ").push_bind(bapas_id);
             }
-        }
-        crate::types::UserRole::Pegawai => {
-            // A Pegawai only sees clients directly assigned to them.
-            query_builder.push(" WHERE pk_id = ");
-            query_builder.push_bind(claims.sub); // claims.sub is the user's own ID
+        },
+        UserRoleEnum::AdminKanwil => {
+            // AdminKanwil hanya bisa melihat data di dalam kanwilnya
+            query_builder.push(" AND kanwil_id = ").push_bind(user.kanwil_id);
+            if let Some(bapas_id) = params.bapas_id { // Bisa filter bapas di bawahnya
+                query_builder.push(" AND bapas_id = ").push_bind(bapas_id);
+            }
+        },
+        UserRoleEnum::AdminBapas => {
+            // AdminBapas hanya bisa melihat data di dalam bapasnya
+            query_builder.push(" AND bapas_id = ").push_bind(user.bapas_id);
+        },
+        UserRoleEnum::Pegawai => {
+            // Pegawai hanya bisa melihat klien miliknya sendiri
+            query_builder.push(" AND pk_id = ").push_bind(user.id);
         }
     }
 
-    // Add the final ordering and pagination to the query.
-    query_builder.push(" ORDER BY nama LIMIT ");
-    query_builder.push_bind(pagination.limit);
-    query_builder.push(" OFFSET ");
-    query_builder.push_bind(offset);
+    // Pegawai bisa filter klien miliknya sendiri, jadi ini tetap berlaku
+    if let Some(pk_id) = params.pk_id {
+        query_builder.push(" AND pk_id = ").push_bind(pk_id);
+    }
+    
+    query_builder.push(" ORDER BY nama_klien");
 
-    // ---------------------------------------------------
-
-    // Build the final query
-    let query = query_builder.build_query_as::<Klien>();
-
-    let klien_list = query
+    let klien_list = query_builder.build_query_as::<Klien>()
         .fetch_all(&pool)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to fetch all klien: {}", e);
+            tracing::error!("Failed to fetch klien list: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
     Ok(Json(klien_list))
 }
 
-// --- READ ONE ---
+
+// --- CREATE ---
+pub async fn create_klien(
+    Extension(pool): Extension<PgPool>,
+    Extension(user): Extension<AuthenticatedUser>,
+    Json(payload): Json<CreateKlien>,
+) -> Result<Json<Klien>, StatusCode> {
+    // Otorisasi: AdminBapas dan Pegawai bisa membuat klien di wilayahnya. SuperAdmin bisa di mana saja.
+    // Trigger di DB akan menangani sinkronisasi bapas_id dan kanwil_id dari pk_id
+    
+    // Kita perlu memeriksa apakah pk_id yang diinput valid untuk user yang membuat
+    let target_pk_bapas_id = sqlx::query_scalar!("SELECT bapas_id FROM users WHERE id = $1", payload.pk_id)
+        .fetch_optional(&pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .flatten(); // flatten Option<Option<i32>> to Option<i32>
+
+    if target_pk_bapas_id.is_none() {
+        return Err(StatusCode::BAD_REQUEST); // PK tidak ditemukan
+    }
+    
+    match user.role {
+        UserRoleEnum::AdminBapas if user.bapas_id != target_pk_bapas_id => {
+            return Err(StatusCode::FORBIDDEN); // AdminBapas hanya boleh menugaskan PK di bapasnya
+        }
+        UserRoleEnum::Pegawai if user.id != payload.pk_id => {
+            return Err(StatusCode::FORBIDDEN); // Pegawai hanya boleh membuat klien untuk dirinya sendiri
+        }
+        _ => {} // SuperAdmin dan AdminKanwil (jika diizinkan) boleh
+    }
+
+
+    let new_klien = sqlx::query_as!(
+        Klien,
+        r#"
+        INSERT INTO klien (
+            tipe_klien, nama_klien, alamat_klien, tempat_lahir_klien, tanggal_lahir_klien,
+            jenis_kelamin_klien, agama_klien, pekerjaan_klien, pendidikan_terakhir_klien,
+            pk_id, online_akses_klien, pengulangan_klien, kewarganegaraan_klien,
+            negara_asal_klien, suku_klien, keterangan_klien, catatan_klien, created_by, updated_by
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $18)
+        RETURNING
+            id, tipe_klien AS "tipe_klien: _", nama_klien, alamat_klien, tempat_lahir_klien, 
+            tanggal_lahir_klien, jenis_kelamin_klien AS "jenis_kelamin_klien: _", agama_klien, pekerjaan_klien AS "pekerjaan_klien: _", 
+            pendidikan_terakhir_klien AS "pendidikan_terakhir_klien: _", bapas_id, pk_id, kanwil_id, online_akses_klien, 
+            pengulangan_klien, kewarganegaraan_klien AS "kewarganegaraan_klien: _", negara_asal_klien, suku_klien, 
+            keterangan_klien, catatan_klien, created_at, updated_at, created_by, 
+            updated_by, deleted_at
+        "#,
+        payload.tipe_klien as _,
+        payload.nama_klien,
+        payload.alamat_klien,
+        payload.tempat_lahir_klien,
+        payload.tanggal_lahir_klien,
+        payload.jenis_kelamin_klien as _,
+        payload.agama_klien,
+        payload.pekerjaan_klien as _,
+        payload.pendidikan_terakhir_klien as _,
+        payload.pk_id,
+        payload.online_akses_klien.unwrap_or(false),
+        payload.pengulangan_klien.unwrap_or(false),
+        payload.kewarganegaraan_klien as _,
+        payload.negara_asal_klien,
+        payload.suku_klien,
+        payload.keterangan_klien,
+        payload.catatan_klien,
+        user.id
+    )
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to create klien: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(Json(new_klien))
+}
+
+
+// --- GET BY ID, UPDATE, DELETE ---
+// Handler ini akan dilindungi oleh middleware otorisasi `authorize_klien_access`
+// yang sudah kita rancang. Jadi, tidak perlu cek role di dalam handler.
+
 pub async fn get_klien_by_id(
     Extension(pool): Extension<PgPool>,
-    Extension(claims): Extension<Claims>,
     Path(id): Path<i32>,
 ) -> Result<Json<Klien>, StatusCode> {
-    let klien = sqlx::query_as("SELECT * FROM klien WHERE id = $1")
-        .bind(id).fetch_optional(&pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .ok_or(StatusCode::NOT_FOUND)?;
+    let klien = sqlx::query_as!(
+        Klien,
+        r#"
+        SELECT
+            id, tipe_klien AS "tipe_klien: _", nama_klien, alamat_klien, tempat_lahir_klien, 
+            tanggal_lahir_klien, jenis_kelamin_klien AS "jenis_kelamin_klien: _", agama_klien, pekerjaan_klien AS "pekerjaan_klien: _", 
+            pendidikan_terakhir_klien AS "pendidikan_terakhir_klien: _", bapas_id, pk_id, kanwil_id, online_akses_klien, 
+            pengulangan_klien, kewarganegaraan_klien AS "kewarganegaraan_klien: _", negara_asal_klien, suku_klien, 
+            keterangan_klien, catatan_klien, created_at, updated_at, created_by, 
+            updated_by, deleted_at
+        FROM klien WHERE id = $1 AND deleted_at IS NULL
+        "#,
+        id
+    )
+    .fetch_optional(&pool)
+    .await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .ok_or(StatusCode::NOT_FOUND)?;
 
-    if !AuthContext::new(&pool, &klien, &claims).is_authorized().await? {
-        return Err(StatusCode::FORBIDDEN);
-    }
     Ok(Json(klien))
 }
 
-// --- UPDATE ---
 pub async fn update_klien(
     Extension(pool): Extension<PgPool>,
-    Extension(claims): Extension<Claims>,
+    Extension(user): Extension<AuthenticatedUser>,
     Path(id): Path<i32>,
     Json(payload): Json<UpdateKlien>,
 ) -> Result<Json<Klien>, StatusCode> {
-    let existing_klien = sqlx::query_as("SELECT * FROM klien WHERE id = $1")
-        .bind(id).fetch_optional(&pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .ok_or(StatusCode::NOT_FOUND)?;
-    
-    if !AuthContext::new(&pool, &existing_klien, &claims).is_authorized().await? {
-        return Err(StatusCode::FORBIDDEN);
-    }
-    
-    let updated_by_id = claims.sub;
+   let updated_klien = sqlx::query_as!(
+    Klien,
+    r#"
+    UPDATE klien SET
+        tipe_klien = COALESCE($1, tipe_klien),
+        nama_klien = COALESCE($2, nama_klien),
+        alamat_klien = COALESCE($3, alamat_klien),
+        tempat_lahir_klien = COALESCE($4, tempat_lahir_klien),
+        tanggal_lahir_klien = COALESCE($5, tanggal_lahir_klien),
+        jenis_kelamin_klien = COALESCE($6, jenis_kelamin_klien),
+        agama_klien = COALESCE($7, agama_klien),
+        pekerjaan_klien = COALESCE($8, pekerjaan_klien),
+        pendidikan_terakhir_klien = COALESCE($9, pendidikan_terakhir_klien),
+        bapas_id = COALESCE($10, bapas_id),
+        pk_id = COALESCE($11, pk_id),
+        kanwil_id = COALESCE($12, kanwil_id),
+        online_akses_klien = COALESCE($13, online_akses_klien),
+        pengulangan_klien = COALESCE($14, pengulangan_klien),
+        kewarganegaraan_klien = COALESCE($15, kewarganegaraan_klien),
+        negara_asal_klien = COALESCE($16, negara_asal_klien),
+        suku_klien = COALESCE($17, suku_klien),
+        keterangan_klien = COALESCE($18, keterangan_klien),
+        catatan_klien = COALESCE($19, catatan_klien),
+        updated_by = $20,
+        updated_at = NOW()
+    WHERE id = $21 AND deleted_at IS NULL
+    RETURNING
+        id, 
+        tipe_klien AS "tipe_klien: _", 
+        nama_klien, 
+        alamat_klien, 
+        tempat_lahir_klien, 
+        tanggal_lahir_klien, 
+        jenis_kelamin_klien AS "jenis_kelamin_klien: _", 
+        agama_klien, 
+        pekerjaan_klien AS "pekerjaan_klien: _", 
+        pendidikan_terakhir_klien AS "pendidikan_terakhir_klien: _", 
+        bapas_id, 
+        pk_id, 
+        kanwil_id, 
+        online_akses_klien, 
+        pengulangan_klien, 
+        kewarganegaraan_klien AS "kewarganegaraan_klien: _", 
+        negara_asal_klien, 
+        suku_klien, 
+        keterangan_klien, 
+        catatan_klien, 
+        created_at, 
+        updated_at, 
+        created_by, 
+        updated_by, 
+        deleted_at
+    "#,
+    payload.tipe_klien as _,
+    payload.nama_klien,
+    payload.alamat_klien,
+    payload.tempat_lahir_klien,
+    payload.tanggal_lahir_klien,
+    payload.jenis_kelamin_klien as _,
+    payload.agama_klien,
+    payload.pekerjaan_klien as _,
+    payload.pendidikan_terakhir_klien as _,
+    payload.bapas_id,
+    payload.pk_id,
+    payload.kanwil_id,
+    payload.online_akses_klien,
+    payload.pengulangan_klien,
+    payload.kewarganegaraan_klien as _,
+    payload.negara_asal_klien,
+    payload.suku_klien,
+    payload.keterangan_klien,
+    payload.catatan_klien,
+    user.id,
+    id
+)
+.fetch_one(&pool)
+.await?;
 
-    let result = sqlx::query_as(
-        r#"
-        UPDATE klien SET
-            tipe = COALESCE($1, tipe),
-            nama = COALESCE($2, nama),
-            alamat = COALESCE($3, alamat),
-            tempat_lahir = COALESCE($4, tempat_lahir),
-            tanggal_lahir = COALESCE($5, tanggal_lahir),
-            jenis_kelamin = COALESCE($6, jenis_kelamin),
-            agama = COALESCE($7, agama),
-            pekerjaan = COALESCE($8, pekerjaan),
-            pendidikan_terakhir = COALESCE($9, pendidikan_terakhir),
-            bapas_id = COALESCE($10, bapas_id),
-            pk_id = COALESCE($11, pk_id),
-            online_akses = COALESCE($12, online_akses),
-            pengulangan = COALESCE($13, pengulangan),
-            kewarganegaraan = COALESCE($14, kewarganegaraan),
-            negara_asal = COALESCE($15, negara_asal),
-            suku = COALESCE($16, suku),
-            keterangan = COALESCE($17, keterangan),
-            catatan = COALESCE($18, catatan),
-            updated_by = $19
-        WHERE id = $20
-        RETURNING *
-        "#,
+    .fetch_optional(&pool)
+    .await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .ok_or(StatusCode::NOT_FOUND)?;
+    
+    Ok(Json(updated_klien))
+}
+
+pub async fn delete_klien(
+    Extension(pool): Extension<PgPool>,
+    Extension(user): Extension<AuthenticatedUser>,
+    Path(id): Path<i32>,
+) -> StatusCode {
+    let result = sqlx::query!(
+        "UPDATE klien SET deleted_at = NOW(), updated_by = $1 WHERE id = $2",
+        user.id, id
     )
-    .bind(payload.tipe).bind(payload.nama).bind(payload.alamat).bind(payload.tempat_lahir)
-    .bind(payload.tanggal_lahir).bind(payload.jenis_kelamin).bind(payload.agama)
-    .bind(payload.pekerjaan).bind(payload.pendidikan_terakhir).bind(payload.bapas_id)
-    .bind(payload.pk_id).bind(payload.online_akses).bind(payload.pengulangan)
-    .bind(payload.kewarganegaraan).bind(payload.negara_asal).bind(payload.suku)
-    .bind(payload.keterangan).bind(payload.catatan).bind(updated_by_id)
-    .bind(id)
-    .fetch_one(&pool)
+    .execute(&pool)
     .await;
 
     match result {
-        Ok(updated_klien) => Ok(Json(updated_klien)),
-        Err(sqlx::Error::RowNotFound) => Err(StatusCode::NOT_FOUND),
-        Err(e) => {
-            tracing::error!("Failed to update klien: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
+        Ok(res) if res.rows_affected() > 0 => StatusCode::NO_CONTENT,
+        Ok(_) => StatusCode::NOT_FOUND,
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }
-}
-
-// --- DELETE ---
-pub async fn delete_klien(
-    Extension(pool): Extension<PgPool>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<i32>,
-) -> StatusCode {
-    let klien_to_delete = match sqlx::query_as("SELECT * FROM klien WHERE id = $1")
-        .bind(id).fetch_optional(&pool).await {
-        Ok(Some(k)) => k,
-        Ok(None) => return StatusCode::NOT_FOUND,
-        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR,
-    };
-
-    if let Ok(false) | Err(_) = AuthContext::new(&pool, &klien_to_delete, &claims).is_authorized().await {
-        return StatusCode::FORBIDDEN;
-    }
-
-    sqlx::query("DELETE FROM klien WHERE id = $1").bind(id).execute(&pool).await.ok();
-    StatusCode::NO_CONTENT
 }

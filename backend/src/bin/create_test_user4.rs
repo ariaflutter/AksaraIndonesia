@@ -12,13 +12,18 @@ async fn main() -> Result<(), sqlx::Error> {
         .connect(&database_url)
         .await?;
 
-    let nip_user = "ariaflutter";
+    // 👇 Customize these values as needed
+    let nip_user = "ariaflutter4";
     let password = "password123";
-    let nama_user = "Gema Eka Adi Pamungkas";
+    let nama_user = "Gema Pegawai";
+
+    // Example IDs — make sure these exist in your DB
+    let kanwil_id: Option<i32> = Some(1);
+    let bapas_id: Option<i32> = Some(1);
 
     let password_hash = hash(password, DEFAULT_COST).expect("Failed to hash password");
 
-    println!("🚀 Creating SuperAdmin user...");
+    println!("🚀 Creating Pegawai user...");
     println!("NIP: {}", nip_user);
     println!("Password: {}", password);
 
@@ -30,20 +35,26 @@ async fn main() -> Result<(), sqlx::Error> {
             password_hash, 
             role_user, 
             status_kepegawaian_user, 
-            status_aktif_user
+            status_aktif_user,
+            kanwil_id,
+            bapas_id
         )
         VALUES (
             $1, 
             $2, 
             $3, 
-            'SuperAdmin'::user_role_enum, 
+            'Pegawai'::user_role_enum, 
             'Aktif'::user_status_kepegawaian_enum, 
-            'Aktif'::user_status_aktif_enum
+            'Aktif'::user_status_aktif_enum,
+            $4,
+            $5
         )
         "#,
         nip_user,
         nama_user,
-        password_hash
+        password_hash,
+        kanwil_id,
+        bapas_id
     )
     .execute(&pool)
     .await?;
