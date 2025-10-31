@@ -11,8 +11,10 @@ use super::model_dewasa::{
     CreatePenerimaanDewasa, PenerimaanDewasa,
     CreateRiwayatHukumDewasa, RiwayatHukumDewasa, UpdateRiwayatHukumDewasa,
     CreateLayananIntegrasiDewasa, LayananIntegrasiDewasa, UpdateLayananIntegrasiDewasa,
-    CreateProsesHukumDewasa, ProsesHukumDewasa, UpdateProsesHukumDewasa}; // Nanti kita tambah UpdatePenerimaanDewasa
+    CreateProsesHukumDewasa, ProsesHukumDewasa, UpdateProsesHukumDewasa,
+    CreateWajibLapor, WajibLaporDewasa}; // Nanti kita tambah UpdatePenerimaanDewasa
 
+use bcrypt::verify;
 
 
 
@@ -767,6 +769,200 @@ pub async fn delete_proses_hukum_dewasa(
     let result = sqlx::query!(
         "UPDATE proses_hukum_dewasa SET deleted_at = NOW(), updated_by = $1 WHERE id = $2",
         user.id,
+        id
+    )
+    .execute(&pool)
+    .await;
+
+    match result {
+        Ok(res) if res.rows_affected() > 0 => StatusCode::NO_CONTENT,
+        Ok(_) => StatusCode::NOT_FOUND,
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    }
+}
+
+
+
+
+
+
+
+
+
+
+// === WAJIB LAPOR DEWASA HANDLERS ===
+
+// --- CREATE (PETUGAS) ---
+// URL: POST /api/petugas/klien/:klien_id/wajib-lapor-dewasa
+pub async fn petugas_wajib_lapor_dewasa(
+    Extension(pool): Extension<PgPool>,
+    Extension(user): Extension<AuthenticatedUser>,
+    Path(klien_id): Path<i32>,
+    Json(payload): Json<CreateWajibLapor>,
+) -> StatusCode {
+     let result = sqlx::query!(
+        r#"
+        INSERT INTO wajib_lapor_dewasa 
+            (klien_id, metode_lapor_dewasa, created_by, photo_path_dewasa, latitude_dewasa, longitude_dewasa)
+        VALUES ($1, 'Petugas', $2, $3, $4, $5)
+        "#,
+        klien_id,
+        user.id,
+        payload.photo_path_dewasa,
+        payload.latitude_dewasa,
+        payload.longitude_dewasa
+    )
+    .execute(&pool)
+    .await;
+    
+    match result {
+        Ok(_) => StatusCode::CREATED,
+        Err(e) => {
+            tracing::error!("Failed to create wajib lapor (petugas): {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
+    }
+}
+
+// --- CREATE (KIOSK) ---
+// URL: POST /api/kiosk/klien/:klien_id/wajib-lapor-dewasa
+pub async fn kiosk_wajib_lapor_dewasa(
+    Extension(pool): Extension<PgPool>,
+    Extension(user): Extension<AuthenticatedUser>, // User "kiosk"
+    Path(klien_id): Path<i32>,
+    Json(payload): Json<CreateWajibLapor>,
+) -> StatusCode {
+    let result = sqlx::query!(
+        r#"
+        INSERT INTO wajib_lapor_dewasa 
+            (klien_id, metode_lapor_dewasa, created_by, photo_path_dewasa, latitude_dewasa, longitude_dewasa)
+        VALUES ($1, 'Self-Service', $2, $3, $4, $5)
+        "#,
+        klien_id,
+        user.id, // ID dari user "kiosk"
+        payload.photo_path_dewasa,
+        payload.latitude_dewasa,
+        payload.longitude_dewasa
+    )
+    .execute(&pool)
+    .await;
+    
+    match result {
+        Ok(_) => StatusCode::CREATED,
+        Err(e) => {
+            tracing::error!("Failed to create wajib lapor (kiosk): {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
+    }
+}
+
+// --- CREATE (MANDIRI) ---
+// URL: POST /api/mandiri/klien/:klien_id/wajib-lapor-dewasa
+pub async fn mandiri_wajib_lapor_dewasa(
+    Extension(pool): Extension<PgPool>,
+    Path(klien_id): Path<i32>,
+    Json(payload): Json<CreateWajibLapor>,
+) -> StatusCode {
+    // 1. Fetch klien untuk memeriksa akses online dan hash PIN
+    let klien_data = match sqlx::query!("SELECT online_akses_klien, pin_klien_hash FROM klien WHERE id = $1", klien_id)
+        .fetch_optional(&pool)
+        .await {
+            Ok(Some(data)) => data,
+            Ok(None) => return StatusCode::NOT_FOUND,
+            Err(_) => return StatusCode::INTERNAL_SERVER_ERROR,
+        };
+
+    // 2. Otorisasi Bisnis: Cek akses online
+    if !klien_data.online_akses_klien {
+        return StatusCode::FORBIDDEN; // Akses online tidak diizinkan
+    }
+
+    // 3. Verifikasi PIN
+    let pin_hash: String = match klien_data.pin_klien_hash { // [FIX] Beri tipe eksplisit
+    Some(hash) => hash,
+    None => return StatusCode::FORBIDDEN,
+};
+    let pin_from_payload = match payload.pin {
+        Some(pin) => pin,
+        None => return StatusCode::UNAUTHORIZED, // PIN tidak disediakan
+    };
+
+    if !verify(&pin_from_payload, &pin_hash).unwrap_or(false) {
+        return StatusCode::UNAUTHORIZED; // PIN salah
+    }
+
+    // 4. Jika semua verifikasi lolos, INSERT data
+    let result = sqlx::query!(
+        r#"
+        INSERT INTO wajib_lapor_dewasa 
+            (klien_id, metode_lapor_dewasa, photo_path_dewasa, latitude_dewasa, longitude_dewasa)
+        VALUES ($1, 'Online', $2, $3, $4)
+        "#,
+        klien_id,
+        payload.photo_path_dewasa,
+        payload.latitude_dewasa,
+        payload.longitude_dewasa
+    )
+    .execute(&pool)
+    .await;
+
+    match result {
+        Ok(_) => StatusCode::CREATED,
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    }
+}
+
+
+// --- READ ALL FOR A KLIEN ---
+// URL: GET /api/klien/:klien_id/wajib-lapor-dewasa
+// --- READ ALL FOR A KLIEN ---
+// URL: GET /api/klien/:klien_id/wajib-lapor-dewasa
+pub async fn get_all_wajib_lapor_for_klien(
+    Extension(pool): Extension<PgPool>,
+    Path(klien_id): Path<i32>,
+) -> Result<Json<Vec<WajibLaporDewasa>>, StatusCode> {
+    let list = sqlx::query_as!(
+        WajibLaporDewasa,
+        r#"
+        SELECT 
+            id,
+            klien_id,
+            photo_path_dewasa,
+            latitude_dewasa,
+            longitude_dewasa,
+            metode_lapor_dewasa AS "metode_lapor_dewasa: _",
+            created_by,
+            deleted_at,
+            created_at -- [FIX] Kolom ini harus ada dan tidak ada koma setelahnya
+        FROM wajib_lapor_dewasa 
+        WHERE klien_id = $1 AND deleted_at IS NULL 
+        ORDER BY created_at DESC
+        "#,
+        klien_id
+    )
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to fetch wajib lapor list: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(Json(list))
+}
+
+
+// --- DELETE ---
+// URL: DELETE /api/wajib-lapor-dewasa/:id
+pub async fn delete_wajib_lapor_dewasa(
+    Extension(pool): Extension<PgPool>,
+    Extension(user): Extension<AuthenticatedUser>,
+    Path(id): Path<i64>,
+) -> StatusCode {
+    // Otorisasi sudah ditangani oleh middleware `authorize_wajib_lapor_access` yang akan kita buat.
+    // Untuk sekarang, kita bisa tambahkan cek role sederhana.
+    
+    let result = sqlx::query!(
+        "UPDATE wajib_lapor_dewasa SET deleted_at = NOW() WHERE id = $1",
         id
     )
     .execute(&pool)

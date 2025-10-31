@@ -1,11 +1,11 @@
 // AUTO-GENERATED MODELS FROM DB SCHEMA
 
-use serde::{Deserialize, Serialize};
-use sqlx::FromRow;
 use chrono::{DateTime, Utc, NaiveDate};
 use rust_decimal::Decimal;
-use crate::types::*;
-
+use serde::{Deserialize, Serialize};
+use sqlx::FromRow;
+use crate::types::{MetodeLaporEnum, NamaInstansiEnum};
+use std::fmt::Debug;
 // === LayananIntegrasiDewasa Models ===
 
 #[derive(Debug, serde::Serialize, sqlx::FromRow)]
@@ -229,41 +229,43 @@ pub struct UpdateRiwayatHukumDewasa {
     pub pertama_ditahan_dewasa: Option<chrono::NaiveDate>,
     pub keterangan: Option<String>,
     pub catatan: Option<String>,
-
 }
-
-// === WajibLaporDewasa Models ===
 
 #[derive(Debug, serde::Serialize, sqlx::FromRow)]
 pub struct WajibLaporDewasa {
     pub id: i64,
     pub klien_id: i32,
-    pub waktu_lapor_dewasa: chrono::DateTime<chrono::Utc>,
+    // TIDAK ADA LAGI waktu_lapor_dewasa
     pub photo_path_dewasa: Option<String>,
     pub latitude_dewasa: Option<rust_decimal::Decimal>,
     pub longitude_dewasa: Option<rust_decimal::Decimal>,
     pub metode_lapor_dewasa: MetodeLaporEnum,
     pub created_by: Option<i32>,
     pub deleted_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub created_at: chrono::DateTime<chrono::Utc>, // [PENTING] Kita akan pakai ini
 }
 
+// Struct ini juga LEBIH SEDERHANA
 #[derive(Debug, serde::Deserialize)]
-pub struct CreateWajibLaporDewasa {
-    pub klien_id: i32,
-    pub waktu_lapor_dewasa: Option<chrono::DateTime<chrono::Utc>>,
+pub struct CreateWajibLapor {
+    // TIDAK ADA LAGI waktu_lapor_dewasa
+    pub photo_path_dewasa: String,
+    pub latitude_dewasa: rust_decimal::Decimal,
+    pub longitude_dewasa: rust_decimal::Decimal,
+    pub pin: Option<String>,
+}
+
+// 3. Struct untuk MENGUPDATE data (jika diperlukan di masa depan).
+//    Untuk saat ini, kita tidak punya endpoint UPDATE untuk wajib lapor,
+//    tapi ada baiknya didefinisikan untuk kelengkapan.
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateWajibLapor {
     pub photo_path_dewasa: Option<String>,
     pub latitude_dewasa: Option<rust_decimal::Decimal>,
     pub longitude_dewasa: Option<rust_decimal::Decimal>,
-    pub metode_lapor_dewasa: MetodeLaporEnum,
 }
 
-#[derive(Debug, serde::Deserialize)]
-pub struct UpdateWajibLaporDewasa {
-    pub klien_id: Option<i32>,
-    pub waktu_lapor_dewasa: Option<chrono::DateTime<chrono::Utc>>,
-    pub photo_path_dewasa: Option<String>,
-    pub latitude_dewasa: Option<rust_decimal::Decimal>,
-    pub longitude_dewasa: Option<rust_decimal::Decimal>,
-    pub metode_lapor_dewasa: Option<MetodeLaporEnum>,
-}
+
+
+
 
