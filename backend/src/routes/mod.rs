@@ -8,6 +8,7 @@ use crate::auth::middleware::{
     authorize_wajib_lapor_delete_access,
 };
 use axum::extract::Path;
+use crate::auth::middleware::auth_api_key;
 
 //use crate::{bapas, users, auth, klien};
 pub fn create_api_router() -> Router {
@@ -115,7 +116,23 @@ pub fn create_api_router() -> Router {
         .route_layer(middleware::from_fn(authorize_wajib_lapor_delete_access)) // Lindungi delete
 
 
+        // --- API Key Management Routes ---
+        .route("/me/api-key", get(users::handlers::get_my_api_key_status).delete(users::handlers::delete_my_api_key))
+        .route("/me/api-key", post(users::handlers::generate_my_api_key)) // Pisahkan POST karena butuh body
+
         .layer(middleware::from_fn(auth_middleware::auth)); // Gunakan alias
+
+
+
+  let export_router = Router::new()
+        .route("/klien.csv", get(klien::handlers_core::export_klien_csv))
+        .layer(middleware::from_fn(auth_api_key));
+
+
+
+
+
+
 
     // This is the main router.
     Router::new()
@@ -123,4 +140,5 @@ pub fn create_api_router() -> Router {
         .route("/auth/login", post(auth::handlers::login))
         .route("/mandiri/klien/:klien_id/wajib-lapor-dewasa", post(klien::handlers_dewasa::mandiri_wajib_lapor_dewasa))
         .nest("/", protected_router)
+        .nest("/export", export_router) // Daftarkan rute ekspor di bawah /api/export
 }

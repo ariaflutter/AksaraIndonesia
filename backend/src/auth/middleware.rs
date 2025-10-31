@@ -12,6 +12,8 @@ use sqlx::PgPool;
 
 use crate::auth::model::{AuthenticatedUser, Claims};
 use crate::types::UserRoleEnum;
+use sha256::digest;
+use crate::users::model::User;
 
 // [FIX] Impor dari modul authorization yang sekarang sudah ada
 use super::authorization::{check_permission, get_klien_ownership};
@@ -141,4 +143,49 @@ pub async fn authorize_wajib_lapor_delete_access(
     }
     
     Ok(next.run(request).await)
+}
+
+
+pub async fn auth_api_key(
+    mut req: Request<Body>,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    let pool = req.extensions().get::<PgPool>()
+        .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let token = req.headers()
+        .get("authorization")
+        .and_then(|auth_header| auth_header.to_str().ok())
+        .and_then(|auth_value| auth_value.strip_prefix("Bearer "))
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    let key_hash = digest(token);
+
+    let user = sqlx::query_as!(
+        User,
+        r#"
+        SELECT id, nip_user, nama_user, gelar_depan_user, gelar_belakang_user,
+        pangkat_golongan_user, jabatan_user, bapas_id, kanwil_id,
+        status_kepegawaian_user AS "status_kepegawaian_user: _",
+        email_user, nomor_telepon_user, status_aktif_user AS "status_aktif_user: _",
+        role_user AS "role_user: _", password_hash, created_at, updated_at, 
+        created_by, updated_by, deleted_at, api_key_hash
+        FROM users WHERE api_key_hash = $1 AND deleted_at IS NULL AND status_aktif_user = 'Aktif'
+        "#,
+        key_hash
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    let authenticated_user = AuthenticatedUser {
+        id: user.id,
+        role: user.role_user,
+        bapas_id: user.bapas_id,
+        kanwil_id: user.kanwil_id,
+    };
+    req.extensions_mut().insert(authenticated_user);
+    
+    Ok(next.run(req).await)
 }

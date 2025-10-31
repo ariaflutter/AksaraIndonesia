@@ -29,7 +29,7 @@ pub async fn login(
             email_user, nomor_telepon_user,
             status_aktif_user AS "status_aktif_user: _",
             role_user AS "role_user: _",
-            password_hash, created_at, updated_at, created_by, updated_by, deleted_at
+            password_hash,api_key_hash, created_at, updated_at, created_by, updated_by, deleted_at
         FROM users 
         WHERE nip_user = $1 
           AND status_aktif_user = 'Aktif' 
@@ -98,7 +98,7 @@ pub async fn me(
             email_user, nomor_telepon_user,
             status_aktif_user AS "status_aktif_user: _",
             role_user AS "role_user: _",
-            password_hash, created_at, updated_at, created_by, updated_by, deleted_at
+            password_hash, api_key_hash,created_at, updated_at, created_by, updated_by, deleted_at
         FROM users 
         WHERE id = $1 AND deleted_at IS NULL
         "#,

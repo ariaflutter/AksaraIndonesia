@@ -23,7 +23,8 @@ pub struct User {
     pub nomor_telepon_user: Option<String>,
     pub status_aktif_user: UserStatusAktifEnum,
     pub role_user: UserRoleEnum,
-    
+    #[serde(skip_serializing)]
+    pub api_key_hash: Option<String>,
     #[serde(skip_serializing)]
     pub password_hash: String,
 
@@ -74,4 +75,15 @@ pub struct UpdateUser {
     pub nomor_telepon_user: Option<String>,
     pub status_aktif_user: Option<UserStatusAktifEnum>,
     pub role_user: Option<UserRoleEnum>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ApiKeyStatus {
+    pub has_key: bool,
+}
+
+// Struct untuk respons POST /api/me/api-key
+#[derive(Debug, Serialize)]
+pub struct NewApiKey {
+    pub api_key: String,
 }

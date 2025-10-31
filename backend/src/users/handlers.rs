@@ -5,13 +5,16 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use serde::Serialize;
+use rand::{distributions::Alphanumeric, Rng};
+use sha256::digest;
 use bcrypt::{hash, DEFAULT_COST};
 use sqlx::PgPool;
 // [FIX] Ganti Claims dengan AuthenticatedUser
 use crate::auth::model::AuthenticatedUser; 
 // [FIX] Ganti UserRole dengan UserRoleEnum
 use crate::types::UserRoleEnum; 
-use super::model::{CreateUser, UpdateUser, User};
+use super::model::{CreateUser, UpdateUser, User, ApiKeyStatus, NewApiKey};
 
 // --- READ ALL ---
 pub async fn get_all_users(
@@ -28,7 +31,7 @@ pub async fn get_all_users(
             email_user, nomor_telepon_user,
             status_aktif_user AS "status_aktif_user: _",
             role_user AS "role_user: _",
-            password_hash, created_at, updated_at, created_by, updated_by, deleted_at
+            password_hash, api_key_hash,created_at, updated_at, created_by, updated_by, deleted_at
         FROM users 
         WHERE deleted_at IS NULL 
         ORDER BY nama_user
@@ -58,7 +61,7 @@ pub async fn get_user_by_id(
             email_user, nomor_telepon_user,
             status_aktif_user AS "status_aktif_user: _",
             role_user AS "role_user: _",
-            password_hash, created_at, updated_at, created_by, updated_by, deleted_at
+            password_hash, api_key_hash,created_at, updated_at, created_by, updated_by, deleted_at
         FROM users 
         WHERE id = $1 AND deleted_at IS NULL
         "#,
@@ -93,43 +96,50 @@ pub async fn create_user(
         tracing::error!("Failed to hash password");
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
+    let api_key_hash: Option<String> = None;
 
-    let new_user = sqlx::query_as!(
-        User,
-        r#"
-        INSERT INTO users (
-            nip_user, nama_user, gelar_depan_user, gelar_belakang_user, pangkat_golongan_user,
-            jabatan_user, bapas_id, kanwil_id, status_kepegawaian_user, email_user,
-            nomor_telepon_user, status_aktif_user, role_user, password_hash, created_by, updated_by
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15)
-        RETURNING
-            id, nip_user, nama_user, gelar_depan_user, gelar_belakang_user,
-            pangkat_golongan_user, jabatan_user, bapas_id, kanwil_id,
-            status_kepegawaian_user AS "status_kepegawaian_user: _",
-            email_user, nomor_telepon_user,
-            status_aktif_user AS "status_aktif_user: _",
-            role_user AS "role_user: _",
-            password_hash, created_at, updated_at, created_by, updated_by, deleted_at
-        "#,
-        payload.nip_user,
-        payload.nama_user,
-        payload.gelar_depan_user,
-        payload.gelar_belakang_user,
-        payload.pangkat_golongan_user,
-        payload.jabatan_user,
-        payload.bapas_id,
-        payload.kanwil_id, // Biarkan DB trigger yang menanganinya jika bapas_id diisi
-        payload.status_kepegawaian_user as _,
-        payload.email_user,
-        payload.nomor_telepon_user,
-        payload.status_aktif_user as _,
-        payload.role_user as _,
-        password_hash,
-        current_user.id // [FIX] Mengisi created_by dan updated_by
+let new_user = sqlx::query_as!(
+    User,
+    r#"
+    INSERT INTO users (
+        nip_user, nama_user, gelar_depan_user, gelar_belakang_user, pangkat_golongan_user,
+        jabatan_user, bapas_id, kanwil_id, status_kepegawaian_user, email_user,
+        nomor_telepon_user, status_aktif_user, role_user, password_hash, api_key_hash,
+        created_by, updated_by
     )
-    .fetch_one(&pool)
-    .await
+    VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+        $11, $12, $13, $14, $15, $16, $17
+    )
+    RETURNING
+        id, nip_user, nama_user, gelar_depan_user, gelar_belakang_user,
+        pangkat_golongan_user, jabatan_user, bapas_id, kanwil_id,
+        status_kepegawaian_user AS "status_kepegawaian_user: _",
+        email_user, nomor_telepon_user,
+        status_aktif_user AS "status_aktif_user: _",
+        role_user AS "role_user: _",
+        password_hash, api_key_hash, created_at, updated_at, created_by, updated_by, deleted_at
+    "#,
+    payload.nip_user,
+    payload.nama_user,
+    payload.gelar_depan_user,
+    payload.gelar_belakang_user,
+    payload.pangkat_golongan_user,
+    payload.jabatan_user,
+    payload.bapas_id,
+    payload.kanwil_id,
+    payload.status_kepegawaian_user as _,
+    payload.email_user,
+    payload.nomor_telepon_user,
+    payload.status_aktif_user as _,
+    payload.role_user as _,
+    password_hash,
+    api_key_hash,              // ✅ now defined
+    current_user.id,           // created_by
+    current_user.id            // updated_by
+)
+.fetch_one(&pool)
+.await
     .map_err(|e| {
         tracing::error!("Failed to create user: {}", e);
         // [IMPROVEMENT] Memberi feedback jika NIP sudah ada
@@ -187,7 +197,7 @@ pub async fn update_user(
     Json(payload): Json<UpdateUser>,
 ) -> Result<Json<User>, StatusCode> {
     
-    let user_to_update = sqlx::query_as!(User, r#"SELECT id, nip_user, nama_user, gelar_depan_user, gelar_belakang_user, pangkat_golongan_user, jabatan_user, bapas_id, kanwil_id, status_kepegawaian_user AS "status_kepegawaian_user: _", email_user, nomor_telepon_user, status_aktif_user AS "status_aktif_user: _", role_user AS "role_user: _", password_hash, created_at, updated_at, created_by, updated_by, deleted_at FROM users WHERE id = $1 AND deleted_at IS NULL"#, id)
+    let user_to_update = sqlx::query_as!(User, r#"SELECT id, nip_user, nama_user, gelar_depan_user, gelar_belakang_user, pangkat_golongan_user, jabatan_user, bapas_id, kanwil_id, status_kepegawaian_user AS "status_kepegawaian_user: _", email_user, nomor_telepon_user, status_aktif_user AS "status_aktif_user: _", role_user AS "role_user: _", password_hash, api_key_hash,created_at, updated_at, created_by, updated_by, deleted_at FROM users WHERE id = $1 AND deleted_at IS NULL"#, id)
         .fetch_optional(&pool)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
@@ -218,6 +228,8 @@ pub async fn update_user(
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
         None => user_to_update.password_hash,
     };
+
+   let api_key_hash: Option<String> = None;
     
     let updated_user = sqlx::query_as!(
         User,
@@ -237,8 +249,9 @@ pub async fn update_user(
             status_aktif_user = COALESCE($12, status_aktif_user),
             role_user = COALESCE($13, role_user),
             password_hash = $14,
-            updated_by = $15
-        WHERE id = $16
+            api_key_hash = $15,
+            updated_by = $16
+        WHERE id = $17
         RETURNING
             id, nip_user, nama_user, gelar_depan_user, gelar_belakang_user,
             pangkat_golongan_user, jabatan_user, bapas_id, kanwil_id,
@@ -246,7 +259,7 @@ pub async fn update_user(
             email_user, nomor_telepon_user,
             status_aktif_user AS "status_aktif_user: _",
             role_user AS "role_user: _",
-            password_hash, created_at, updated_at, created_by, updated_by, deleted_at
+            password_hash, api_key_hash,created_at, updated_at, created_by, updated_by, deleted_at
         "#,
         payload.nip_user,
         payload.nama_user,
@@ -262,6 +275,7 @@ pub async fn update_user(
         payload.status_aktif_user as _,
         payload.role_user as _,
         password_hash,
+        api_key_hash,
         current_user.id, // [FIX] Mengisi updated_by
         id
     )
@@ -273,4 +287,71 @@ pub async fn update_user(
     })?;
 
     Ok(Json(updated_user))
+}
+
+// --- GET API KEY STATUS ---
+// URL: GET /api/me/api-key
+pub async fn get_my_api_key_status(
+    Extension(pool): Extension<PgPool>,
+    Extension(user): Extension<AuthenticatedUser>,
+) -> Result<Json<ApiKeyStatus>, StatusCode> {
+    let has_key = sqlx::query_scalar!(
+        "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND api_key_hash IS NOT NULL)",
+        user.id
+    )
+    .fetch_one(&pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .unwrap_or(false);
+
+    Ok(Json(ApiKeyStatus { has_key }))
+}
+
+
+// --- GENERATE/REGENERATE API KEY ---
+// URL: POST /api/me/api-key
+pub async fn generate_my_api_key(
+    Extension(pool): Extension<PgPool>,
+    Extension(user): Extension<AuthenticatedUser>,
+) -> Result<Json<NewApiKey>, StatusCode> {
+    // 1. Generate token acak yang aman
+    let new_key: String = rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(32) // Panjang token
+        .map(char::from)
+        .collect();
+    let api_key = format!("ak_{}", new_key); // Tambahkan prefix
+
+    // 2. Hash token tersebut
+    let key_hash = digest(api_key.clone());
+
+    // 3. Update database
+    sqlx::query!(
+        "UPDATE users SET api_key_hash = $1 WHERE id = $2",
+        key_hash,
+        user.id
+    )
+    .execute(&pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // 4. Kembalikan key asli ke pengguna
+    Ok(Json(NewApiKey { api_key }))
+}
+
+// --- DELETE API KEY ---
+// URL: DELETE /api/me/api-key
+pub async fn delete_my_api_key(
+    Extension(pool): Extension<PgPool>,
+    Extension(user): Extension<AuthenticatedUser>,
+) -> StatusCode {
+    sqlx::query!(
+        "UPDATE users SET api_key_hash = NULL WHERE id = $1",
+        user.id
+    )
+    .execute(&pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+    .map(|_| StatusCode::NO_CONTENT)
+    .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
 }

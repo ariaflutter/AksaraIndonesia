@@ -10,6 +10,8 @@ use crate::auth::model::AuthenticatedUser;
 use crate::types::UserRoleEnum;
 use super::model_core::{CreateKlien, Klien, UpdateKlien};
 use serde::Deserialize;
+use axum::response::{IntoResponse, Response};
+use axum::http::header;
 
 #[derive(Deserialize)]
 pub struct GetAllKlienParams {
@@ -285,4 +287,53 @@ pub async fn delete_klien(
         Ok(_) => StatusCode::NOT_FOUND,
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }
+}
+
+
+pub async fn export_klien_csv(
+    Extension(pool): Extension<PgPool>,
+    Extension(user): Extension<AuthenticatedUser>,
+) -> Result<Response, StatusCode> {
+    // [LOGIKA OTORISASI]
+    // Gunakan QueryBuilder persis seperti di get_all_klien untuk memfilter data
+    let mut query_builder = sqlx::QueryBuilder::new("SELECT * FROM klien WHERE deleted_at IS NULL");
+    match user.role {
+        UserRoleEnum::AdminKanwil => {
+            query_builder.push(" AND kanwil_id = ").push_bind(user.kanwil_id);
+        }
+        UserRoleEnum::AdminBapas => {
+            query_builder.push(" AND bapas_id = ").push_bind(user.bapas_id);
+        }
+        UserRoleEnum::Pegawai => {
+            query_builder.push(" AND pk_id = ").push_bind(user.id);
+        }
+        UserRoleEnum::SuperAdmin => { /* tidak perlu filter tambahan */ }
+    }
+    
+    let klien_list = query_builder.build_query_as::<Klien>()
+        .fetch_all(&pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // [PEMBUATAN CSV]
+    let mut wtr = csv::Writer::from_writer(vec![]);
+    // Tulis header
+    wtr.write_record(&["id", "nama_klien", "alamat_klien", "tipe_klien"]).unwrap();
+    // Tulis data baris
+    for klien in klien_list {
+        wtr.write_record(&[
+            klien.id.to_string(),
+            klien.nama_klien,
+            klien.alamat_klien.unwrap_or_default(),
+            format!("{:?}", klien.tipe_klien),
+        ]).unwrap();
+    }
+    
+    let csv_data = wtr.into_inner().unwrap();
+
+    // [KIRIM RESPONS]
+    let headers = [
+        (header::CONTENT_TYPE, "text/csv; charset=utf-8"),
+        (header::CONTENT_DISPOSITION, "attachment; filename=\"klien_export.csv\""),
+    ];
+
+    Ok((headers, csv_data).into_response())
 }
