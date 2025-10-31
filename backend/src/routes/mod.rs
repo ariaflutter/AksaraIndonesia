@@ -1,5 +1,5 @@
 // in src/routes/mod.rs
-use axum::{middleware, routing::{get, post, delete}, Router};
+use axum::{middleware, routing::{get, post}, Router};
 use crate::{ users, auth, bapas, kanwil, klien};
 //use crate::{bapas, users, auth, klien};
 pub fn create_api_router() -> Router {

@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 # The core web framework
-axum = "0.7"
+axum = { version = "0.7", features = ["macros"] }
 
 # The asynchronous runtime needed to run the server
 tokio = { version = "1", features = ["full"] }

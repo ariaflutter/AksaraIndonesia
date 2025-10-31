@@ -5,7 +5,6 @@ use axum::{
     http::{Request, StatusCode},
     middleware::Next,
     response::Response,
-    Extension
 };
 use jsonwebtoken::{decode, DecodingKey, Validation};
 use crate::auth::model::{AuthenticatedUser, Claims}; 

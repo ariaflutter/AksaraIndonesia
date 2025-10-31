@@ -19,6 +19,7 @@ pub struct GetAllKlienParams {
 }
 
 // --- READ ALL (dengan filter dan otorisasi) ---
+#[axum::debug_handler]
 pub async fn get_all_klien(
     Extension(pool): Extension<PgPool>,
     Extension(user): Extension<AuthenticatedUser>,
@@ -85,6 +86,7 @@ pub async fn get_all_klien(
 
 
 // --- CREATE ---
+#[axum::debug_handler]
 pub async fn create_klien(
     Extension(pool): Extension<PgPool>,
     Extension(user): Extension<AuthenticatedUser>,
@@ -164,7 +166,7 @@ pub async fn create_klien(
 // --- GET BY ID, UPDATE, DELETE ---
 // Handler ini akan dilindungi oleh middleware otorisasi `authorize_klien_access`
 // yang sudah kita rancang. Jadi, tidak perlu cek role di dalam handler.
-
+#[axum::debug_handler]
 pub async fn get_klien_by_id(
     Extension(pool): Extension<PgPool>,
     Path(id): Path<i32>,
@@ -190,13 +192,16 @@ pub async fn get_klien_by_id(
     Ok(Json(klien))
 }
 
+#[axum::debug_handler]
 pub async fn update_klien(
     Extension(pool): Extension<PgPool>,
     Extension(user): Extension<AuthenticatedUser>,
     Path(id): Path<i32>,
     Json(payload): Json<UpdateKlien>,
 ) -> Result<Json<Klien>, StatusCode> {
-   let updated_klien = sqlx::query_as!(
+
+    // [FIX] Query yang lengkap dan perbaikan error handling
+    let updated_klien = sqlx::query_as!(
     Klien,
     r#"
     UPDATE klien SET
@@ -209,8 +214,8 @@ pub async fn update_klien(
         agama_klien = COALESCE($7, agama_klien),
         pekerjaan_klien = COALESCE($8, pekerjaan_klien),
         pendidikan_terakhir_klien = COALESCE($9, pendidikan_terakhir_klien),
-        bapas_id = COALESCE($10, bapas_id),
-        pk_id = COALESCE($11, pk_id),
+        pk_id = COALESCE($10, pk_id),
+        bapas_id = COALESCE($11, bapas_id),
         kanwil_id = COALESCE($12, kanwil_id),
         online_akses_klien = COALESCE($13, online_akses_klien),
         pengulangan_klien = COALESCE($14, pengulangan_klien),
@@ -219,35 +224,15 @@ pub async fn update_klien(
         suku_klien = COALESCE($17, suku_klien),
         keterangan_klien = COALESCE($18, keterangan_klien),
         catatan_klien = COALESCE($19, catatan_klien),
-        updated_by = $20,
-        updated_at = NOW()
+        updated_by = $20
     WHERE id = $21 AND deleted_at IS NULL
     RETURNING
-        id, 
-        tipe_klien AS "tipe_klien: _", 
-        nama_klien, 
-        alamat_klien, 
-        tempat_lahir_klien, 
-        tanggal_lahir_klien, 
-        jenis_kelamin_klien AS "jenis_kelamin_klien: _", 
-        agama_klien, 
-        pekerjaan_klien AS "pekerjaan_klien: _", 
-        pendidikan_terakhir_klien AS "pendidikan_terakhir_klien: _", 
-        bapas_id, 
-        pk_id, 
-        kanwil_id, 
-        online_akses_klien, 
-        pengulangan_klien, 
-        kewarganegaraan_klien AS "kewarganegaraan_klien: _", 
-        negara_asal_klien, 
-        suku_klien, 
-        keterangan_klien, 
-        catatan_klien, 
-        created_at, 
-        updated_at, 
-        created_by, 
-        updated_by, 
-        deleted_at
+        id, tipe_klien AS "tipe_klien: _", nama_klien, alamat_klien, tempat_lahir_klien, 
+        tanggal_lahir_klien, jenis_kelamin_klien AS "jenis_kelamin_klien: _", agama_klien, pekerjaan_klien AS "pekerjaan_klien: _", 
+        pendidikan_terakhir_klien AS "pendidikan_terakhir_klien: _", bapas_id, pk_id, kanwil_id, online_akses_klien, 
+        pengulangan_klien, kewarganegaraan_klien AS "kewarganegaraan_klien: _", negara_asal_klien, suku_klien, 
+        keterangan_klien, catatan_klien, created_at, updated_at, created_by, 
+        updated_by, deleted_at
     "#,
     payload.tipe_klien as _,
     payload.nama_klien,
@@ -258,8 +243,8 @@ pub async fn update_klien(
     payload.agama_klien,
     payload.pekerjaan_klien as _,
     payload.pendidikan_terakhir_klien as _,
-    payload.bapas_id,
     payload.pk_id,
+    payload.bapas_id,
     payload.kanwil_id,
     payload.online_akses_klien,
     payload.pengulangan_klien,
@@ -271,16 +256,18 @@ pub async fn update_klien(
     user.id,
     id
 )
-.fetch_one(&pool)
-.await?;
-
-    .fetch_optional(&pool)
-    .await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+.fetch_optional(&pool)
+.await
+    // [FIX] Ganti ?.await dengan .map_err yang benar
+    .map_err(|e| {
+        tracing::error!("Failed to update klien: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?
     .ok_or(StatusCode::NOT_FOUND)?;
     
     Ok(Json(updated_klien))
 }
-
+#[axum::debug_handler]
 pub async fn delete_klien(
     Extension(pool): Extension<PgPool>,
     Extension(user): Extension<AuthenticatedUser>,

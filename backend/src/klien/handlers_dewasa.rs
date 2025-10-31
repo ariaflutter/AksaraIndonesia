@@ -34,6 +34,7 @@ use super::model_dewasa::{
 
 // --- CREATE ---
 // URL: POST /api/klien/:klien_id/penerimaan-dewasa
+#[axum::debug_handler]
 pub async fn create_penerimaan_dewasa(
     Extension(pool): Extension<PgPool>,
     Extension(user): Extension<AuthenticatedUser>,
@@ -94,6 +95,7 @@ pub async fn create_penerimaan_dewasa(
 
 // --- READ ALL FOR A SPECIFIC KLIEN ---
 // URL: GET /api/klien/:klien_id/penerimaan-dewasa
+#[axum::debug_handler]
 pub async fn get_all_penerimaan_for_klien(
     Extension(pool): Extension<PgPool>,
     Path(klien_id): Path<i32>,
@@ -129,6 +131,7 @@ pub async fn get_all_penerimaan_for_klien(
 
 // --- READ ONE BY ITS OWN ID ---
 // URL: GET /api/penerimaan-dewasa/:id
+#[axum::debug_handler]
 pub async fn get_penerimaan_by_id(
     Extension(pool): Extension<PgPool>,
     Path(id): Path<i32>,
@@ -165,6 +168,7 @@ pub async fn get_penerimaan_by_id(
 // --- UPDATE ---
 // URL: PUT /api/penerimaan-dewasa/:id
 // Untuk Update, kita akan gunakan struct `CreatePenerimaanDewasa` karena semua fieldnya sudah `Option`
+#[axum::debug_handler]
 pub async fn update_penerimaan_dewasa(
     Extension(pool): Extension<PgPool>,
     Extension(user): Extension<AuthenticatedUser>,
@@ -217,6 +221,7 @@ pub async fn update_penerimaan_dewasa(
 
 // --- DELETE (SOFT) ---
 // URL: DELETE /api/penerimaan-dewasa/:id
+#[axum::debug_handler]
 pub async fn delete_penerimaan_dewasa(
     Extension(pool): Extension<PgPool>,
     Extension(user): Extension<AuthenticatedUser>,
@@ -235,7 +240,7 @@ pub async fn delete_penerimaan_dewasa(
         Ok(res) if res.rows_affected() > 0 => StatusCode::NO_CONTENT,
         Ok(_) => StatusCode::NOT_FOUND,
         Err(e) => {
-            tracing::error!("Failed to delete penerimaan {}: {}", e);
+            tracing::error!("Failed to delete penerimaan {}: {}", id, e);
             StatusCode::INTERNAL_SERVER_ERROR
         }
     }
@@ -266,6 +271,7 @@ pub async fn delete_penerimaan_dewasa(
 
 // --- CREATE ---
 // URL: POST /api/klien/:klien_id/riwayat-hukum-dewasa
+#[axum::debug_handler]
 pub async fn create_riwayat_hukum_dewasa(
     Extension(pool): Extension<PgPool>,
     Extension(user): Extension<AuthenticatedUser>,
@@ -310,6 +316,7 @@ pub async fn create_riwayat_hukum_dewasa(
 
 // --- READ ALL FOR A SPECIFIC KLIEN ---
 // URL: GET /api/klien/:klien_id/riwayat-hukum-dewasa
+#[axum::debug_handler]
 pub async fn get_all_riwayat_hukum_for_klien(
     Extension(pool): Extension<PgPool>,
     Path(klien_id): Path<i32>,
@@ -332,6 +339,7 @@ pub async fn get_all_riwayat_hukum_for_klien(
 
 // --- READ ONE BY ITS OWN ID ---
 // URL: GET /api/riwayat-hukum-dewasa/:id
+#[axum::debug_handler]
 pub async fn get_riwayat_hukum_by_id(
     Extension(pool): Extension<PgPool>,
     Path(id): Path<i32>,
@@ -352,6 +360,7 @@ pub async fn get_riwayat_hukum_by_id(
 
 // --- UPDATE ---
 // URL: PUT /api/riwayat-hukum-dewasa/:id
+#[axum::debug_handler]
 pub async fn update_riwayat_hukum_dewasa(
     Extension(pool): Extension<PgPool>,
     Extension(user): Extension<AuthenticatedUser>,
@@ -401,6 +410,7 @@ pub async fn update_riwayat_hukum_dewasa(
 
 // --- DELETE (SOFT) ---
 // URL: DELETE /api/riwayat-hukum-dewasa/:id
+#[axum::debug_handler]
 pub async fn delete_riwayat_hukum_dewasa(
     Extension(pool): Extension<PgPool>,
     Extension(user): Extension<AuthenticatedUser>,
@@ -445,6 +455,7 @@ pub async fn delete_riwayat_hukum_dewasa(
 
 // --- CREATE ---
 // URL: POST /api/klien/:klien_id/layanan-integrasi-dewasa
+#[axum::debug_handler]
 pub async fn create_layanan_integrasi_dewasa(
     Extension(pool): Extension<PgPool>,
     Extension(user): Extension<AuthenticatedUser>,
@@ -491,6 +502,7 @@ pub async fn create_layanan_integrasi_dewasa(
 
 // --- READ ALL FOR A SPECIFIC KLIEN ---
 // URL: GET /api/klien/:klien_id/layanan-integrasi-dewasa
+#[axum::debug_handler]
 pub async fn get_all_layanan_integrasi_for_klien(
     Extension(pool): Extension<PgPool>,
     Path(klien_id): Path<i32>,
@@ -510,6 +522,7 @@ pub async fn get_all_layanan_integrasi_for_klien(
 
 // --- READ ONE BY ITS OWN ID ---
 // URL: GET /api/layanan-integrasi-dewasa/:id
+#[axum::debug_handler]
 pub async fn get_layanan_integrasi_by_id(
     Extension(pool): Extension<PgPool>,
     Path(id): Path<i32>,
@@ -530,6 +543,7 @@ pub async fn get_layanan_integrasi_by_id(
 
 // --- UPDATE ---
 // URL: PUT /api/layanan-integrasi-dewasa/:id
+#[axum::debug_handler]
 pub async fn update_layanan_integrasi_dewasa(
     Extension(pool): Extension<PgPool>,
     Extension(user): Extension<AuthenticatedUser>,
@@ -583,6 +597,7 @@ pub async fn update_layanan_integrasi_dewasa(
 
 // --- DELETE (SOFT) ---
 // URL: DELETE /api/layanan-integrasi-dewasa/:id
+#[axum::debug_handler]
 pub async fn delete_layanan_integrasi_dewasa(
     Extension(pool): Extension<PgPool>,
     Extension(user): Extension<AuthenticatedUser>,
@@ -623,6 +638,7 @@ pub async fn delete_layanan_integrasi_dewasa(
 
 // --- CREATE ---
 // URL: POST /api/penerimaan-dewasa/:penerimaan_id/proses-hukum-dewasa
+#[axum::debug_handler]
 pub async fn create_proses_hukum_dewasa(
     Extension(pool): Extension<PgPool>,
     Extension(user): Extension<AuthenticatedUser>,
@@ -660,6 +676,7 @@ pub async fn create_proses_hukum_dewasa(
 
 // --- READ ALL FOR A SPECIFIC PENERIMAAN ---
 // URL: GET /api/penerimaan-dewasa/:penerimaan_id/proses-hukum-dewasa
+#[axum::debug_handler]
 pub async fn get_all_proses_hukum_for_penerimaan(
     Extension(pool): Extension<PgPool>,
     Path(penerimaan_dewasa_id): Path<i32>,
@@ -679,6 +696,7 @@ pub async fn get_all_proses_hukum_for_penerimaan(
 
 // --- READ ONE BY ITS OWN ID ---
 // URL: GET /api/proses-hukum-dewasa/:id
+#[axum::debug_handler]
 pub async fn get_proses_hukum_by_id(
     Extension(pool): Extension<PgPool>,
     Path(id): Path<i64>, // Ingat, ID adalah BIGINT
@@ -699,6 +717,7 @@ pub async fn get_proses_hukum_by_id(
 
 // --- UPDATE ---
 // URL: PUT /api/proses-hukum-dewasa/:id
+#[axum::debug_handler]
 pub async fn update_proses_hukum_dewasa(
     Extension(pool): Extension<PgPool>,
     Extension(user): Extension<AuthenticatedUser>,
@@ -738,6 +757,7 @@ pub async fn update_proses_hukum_dewasa(
 
 // --- DELETE (SOFT) ---
 // URL: DELETE /api/proses-hukum-dewasa/:id
+#[axum::debug_handler]
 pub async fn delete_proses_hukum_dewasa(
     Extension(pool): Extension<PgPool>,
     Extension(user): Extension<AuthenticatedUser>,

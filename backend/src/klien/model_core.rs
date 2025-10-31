@@ -78,6 +78,8 @@ pub struct UpdateKlien {
     pub pekerjaan_klien: Option<JenisPekerjaanEnum>,
     pub pendidikan_terakhir_klien: Option<TingkatPendidikanEnum>,
     pub pk_id: Option<i32>, // Bisa jadi ada pemindahan PK
+    pub bapas_id: Option<i32>, // Bisa jadi ada pemindahan Bapas
+    pub kanwil_id: Option<i32>, // Bisa jadi ada pemindahan Kanwil
     pub online_akses_klien: Option<bool>,
     pub pengulangan_klien: Option<bool>,
     pub kewarganegaraan_klien: Option<KewarganegaraanEnum>,
