@@ -14,6 +14,7 @@ const PG_CONFIG = {
 // === OUTPUT PATHS ===
 const TS_BLUEPRINT_PATH = path.join(__dirname, 'blueprint.ts');
 const RS_BLUEPRINT_PATH = path.join(__dirname, 'blueprint.rs');
+const JSON_BLUEPRINT_PATH = path.join(__dirname, 'blueprint.json'); // Ganti dari .ts ke .json
 
 // === SCHEMA QUERY ===
 // Pulls columns for all public tables in deterministic order
@@ -69,6 +70,9 @@ async function main() {
     // === Write Rust blueprint ===
     const rsOut = renderRustBlueprint(tables);
     fs.writeFileSync(RS_BLUEPRINT_PATH, rsOut);
+
+    const jsonOut = JSON.stringify(tables, null, 2);
+    fs.writeFileSync(JSON_BLUEPRINT_PATH, jsonOut);
 
     await client.end();
     console.log('✅ Blueprint generated: scripts/blueprint.ts and scripts/blueprint.rs');
